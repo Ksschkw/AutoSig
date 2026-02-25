@@ -1,0 +1,6 @@
+# AutoSig gitignore
+.env
+.nuget/packages/
+**/bin/
+**/obj/
+.h*

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AutoSig.Application/AutoSig.Application.csproj" />
+    <Project Path="src/AutoSig.Console/AutoSig.Console.csproj" />
+    <Project Path="src/AutoSig.Domain/AutoSig.Domain.csproj" />
+    <Project Path="src/AutoSig.Infrastructure.AI/AutoSig.Infrastructure.AI.csproj" />
+    <Project Path="src/AutoSig.Infrastructure.Solana/AutoSig.Infrastructure.Solana.csproj" />
+  </Folder>
+</Solution>
