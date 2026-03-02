@@ -45,6 +45,11 @@ public sealed class SpectreUiAgent :
             .AddColumn("[white]Value[/]");
 
         table.AddRow("[grey]Treasury Balance[/]", $"[bold white]{ctx.TreasuryBalanceSol:F4} SOL[/]");
+        var priceColor = ctx.Sol24hChangePct >= 0 ? "green" : "red";
+        var priceStr = ctx.SolUsdPrice > 0
+            ? $"[bold {priceColor}]${ctx.SolUsdPrice:F2}  ({ctx.Sol24hChangePct:+0.00;-0.00}% 24h)[/]"
+            : "[grey]Fetching...[/]";
+        table.AddRow("[grey]SOL/USD Price[/]", priceStr);
         table.AddRow("[grey]Network Slot[/]", $"[white]{ctx.CurrentSlot:N0}[/]");
         table.AddRow("[grey]Estimated TPS[/]", $"[white]{ctx.EstimatedTps:F1}[/]");
         table.AddRow("[grey]Recent Transactions[/]", $"[white]{ctx.RecentTransactionCount:N0}[/]");

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Solnet.Programs;
 using Solnet.Rpc;
 using Solnet.Rpc.Builders;
+using Solnet.Rpc.Models;
 using Solnet.Wallet;
 
 namespace AutoSig.Infrastructure.Solana;
@@ -19,9 +20,6 @@ public sealed class SolanaSignerEnclave : ISolanaService
     private readonly Wallet _wallet;
     private readonly IRpcClient _rpcClient;
     private readonly ILogger<SolanaSignerEnclave> _logger;
-
-    // The treasury "vault" destination for demonstration purposes on Devnet
-    private const string TestProtocolVaultAddress = "DVt1X6D2nLaVBFQKnafm4gNPucLxUhFB9SrBKBkH7CqP";
 
     public SolanaSignerEnclave(string base58PrivateKey, IRpcClient rpcClient, ILogger<SolanaSignerEnclave> logger)
     {
@@ -63,9 +61,9 @@ public sealed class SolanaSignerEnclave : ISolanaService
             // Build transaction based on proposal type
             byte[] txBytes = proposal.Type switch
             {
-                ProposalType.SolTransfer => BuildSolTransfer(proposal, blockHash),
-                ProposalType.SplTokenMint => BuildSplMintTransaction(proposal, blockHash),
-                _ => BuildSolTransfer(proposal, blockHash)
+                ProposalType.SolTransfer    => BuildSolTransfer(proposal, blockHash),
+                ProposalType.SplTokenMint   => await BuildSplMintTransactionAsync(proposal, blockHash),
+                _                           => BuildSolTransfer(proposal, blockHash)
             };
 
             _logger.LogInformation("[Enclave] 🔐 Signing transaction with treasury keypair...");
@@ -75,20 +73,20 @@ public sealed class SolanaSignerEnclave : ISolanaService
             {
                 return new TransactionResult
                 {
-                    ProposalId = proposal.Id,
-                    Success = true,
+                    ProposalId    = proposal.Id,
+                    Success       = true,
                     SignatureHash = sendResponse.Result,
-                    ExecutedAt = DateTime.UtcNow
+                    ExecutedAt    = DateTime.UtcNow
                 };
             }
             else
             {
                 return new TransactionResult
                 {
-                    ProposalId = proposal.Id,
-                    Success = false,
-                    ErrorMessage = sendResponse.RawRpcResponse,
-                    ExecutedAt = DateTime.UtcNow
+                    ProposalId    = proposal.Id,
+                    Success       = false,
+                    ErrorMessage  = sendResponse.RawRpcResponse,
+                    ExecutedAt    = DateTime.UtcNow
                 };
             }
         }
@@ -97,20 +95,20 @@ public sealed class SolanaSignerEnclave : ISolanaService
             _logger.LogError(ex, "[Enclave] Transaction execution failed.");
             return new TransactionResult
             {
-                ProposalId = proposal.Id,
-                Success = false,
+                ProposalId   = proposal.Id,
+                Success      = false,
                 ErrorMessage = ex.Message,
-                ExecutedAt = DateTime.UtcNow
+                ExecutedAt   = DateTime.UtcNow
             };
         }
     }
 
     private byte[] BuildSolTransfer(TradeProposal proposal, string blockHash)
     {
-        // Use the proposal's destination if it looks valid, otherwise fall back to test vault
+        // Validate destination — must be a real Solana address (>= 32 chars Base58)
         var destination = proposal.DestinationAddress.Length >= 32
             ? proposal.DestinationAddress
-            : TestProtocolVaultAddress;
+            : _wallet.Account.PublicKey.Key; // failsafe: send back to self
 
         return new TransactionBuilder()
             .SetRecentBlockHash(blockHash)
@@ -122,11 +120,86 @@ public sealed class SolanaSignerEnclave : ISolanaService
             .Build([_wallet.Account]);
     }
 
-    private byte[] BuildSplMintTransaction(TradeProposal proposal, string blockHash)
+    /// <summary>
+    /// Builds a real SPL Token creation + mint transaction using Solnet's TokenProgram.
+    /// This creates a brand-new token on-chain, then mints a supply to the destination wallet.
+    /// 4 instructions:
+    ///   1. SystemProgram.CreateAccount  → allocate the mint account on chain
+    ///   2. TokenProgram.InitializeMint  → configure decimals + mint authority
+    ///   3. AssociatedTokenAccountProgram.CreateAssociatedTokenAccount → receiver's ATA
+    ///   4. TokenProgram.MintTo          → mint 1000 tokens (with 6 decimals = 1,000,000,000 raw units)
+    /// The mint Account is ephemeral — a fresh keypair generated per proposal.
+    /// Treasury wallet pays all fees and holds mint authority.
+    /// </summary>
+    private async Task<byte[]> BuildSplMintTransactionAsync(TradeProposal proposal, string blockHash)
     {
-        // For SPL token demo: we do a SOL transfer to the test vault to represent a "protocol interaction"
-        // In a full implementation, this would use TokenProgram.MintTo()
-        _logger.LogInformation("[Enclave] SPL Mint demo mode: executing SOL transfer to test vault as protocol interaction.");
-        return BuildSolTransfer(proposal with { AmountLamports = Math.Min(proposal.AmountLamports, 10_000_000) }, blockHash);
+        _logger.LogInformation("[Enclave] Building real SPL Token creation + mint transaction...");
+
+        // Generate a fresh keypair for the new token mint account
+        var mintAccount = new Account();
+        _logger.LogInformation("[Enclave] New token mint address: {Mint}", mintAccount.PublicKey.Key);
+
+        // Fetch minimum rent-exempt balance for a mint account
+        var rentResponse = await _rpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.MintAccountDataSize);
+        var rentLamports = rentResponse.Result;
+
+        // Resolve the destination wallet — fall back to treasury if invalid
+        var receiverWallet = proposal.DestinationAddress.Length >= 32
+            ? new PublicKey(proposal.DestinationAddress)
+            : _wallet.Account.PublicKey;
+
+        // Derive the Associated Token Account (ATA) address for the receiver
+        PublicKey.TryFindProgramAddress(
+            new[]
+            {
+                receiverWallet.KeyBytes,
+                TokenProgram.ProgramIdKey.KeyBytes,
+                mintAccount.PublicKey.KeyBytes
+            },
+            AssociatedTokenAccountProgram.ProgramIdKey,
+            out PublicKey ataAddress, out _);
+
+        _logger.LogInformation("[Enclave] Receiver ATA: {Ata}", ataAddress.Key);
+
+        // 1000 tokens with 6 decimal places = 1_000 * 10^6 raw units
+        const byte  decimals      = 6;
+        const ulong mintAmount    = 1_000UL * 1_000_000UL;
+
+        var tx = new TransactionBuilder()
+            .SetRecentBlockHash(blockHash)
+            .SetFeePayer(_wallet.Account.PublicKey)
+            // Instruction 1: allocate mint account storage on chain
+            .AddInstruction(SystemProgram.CreateAccount(
+                fromAccount:         _wallet.Account.PublicKey,
+                newAccountPublicKey: mintAccount.PublicKey,
+                lamports:            rentLamports,
+                space:               TokenProgram.MintAccountDataSize,
+                programId:           TokenProgram.ProgramIdKey))
+            // Instruction 2: initialise the mint (treasury = mintAuthority = freezeAuthority)
+            .AddInstruction(TokenProgram.InitializeMint(
+                mint:             mintAccount.PublicKey,
+                decimals:         decimals,
+                mintAuthority:    _wallet.Account.PublicKey,
+                freezeAuthority:  _wallet.Account.PublicKey))
+            // Instruction 3: create the receiver's Associated Token Account
+            .AddInstruction(AssociatedTokenAccountProgram.CreateAssociatedTokenAccount(
+                _wallet.Account.PublicKey,
+                receiverWallet,
+                mintAccount.PublicKey))
+            // Instruction 4: mint the token supply to the receiver's ATA
+            // Solnet MintTo signature: (mint, destination, amount, authority)
+            .AddInstruction(TokenProgram.MintTo(
+                mintAccount.PublicKey,
+                ataAddress,
+                mintAmount,
+                _wallet.Account.PublicKey))
+            // Both treasury + mint account must sign (mint account authorises its own creation)
+            .Build([_wallet.Account, mintAccount]);
+
+        _logger.LogInformation("[Enclave] ✅ SPL Token mint TX built: {Decimals} decimals, {Amount} raw units → {Ata}",
+            decimals, mintAmount, ataAddress.Key[..12]);
+
+        return tx;
     }
 }
+

@@ -29,14 +29,21 @@ public sealed record MarketContext
     /// <summary>Timestamp when this context was captured.</summary>
     public DateTime CapturedAt { get; init; } = DateTime.UtcNow;
 
-    /// <summary>Simulated market sentiment derived from on-chain activity patterns.</summary>
+    /// <summary>Market sentiment derived from price action + on-chain activity.</summary>
     public required MarketSentiment Sentiment { get; init; }
+
+    /// <summary>Real-time SOL/USD price from CoinGecko. 0 if unavailable.</summary>
+    public double SolUsdPrice { get; init; } = 0;
+
+    /// <summary>SOL 24-hour price change in percent from CoinGecko. 0 if unavailable.</summary>
+    public double Sol24hChangePct { get; init; } = 0;
 
     /// <summary>Human-readable summary of the current market state for the LLM.</summary>
     public string ToSummary() =>
         FormattableString.Invariant($"""
         === LIVE SOLANA DEVNET STATE (captured {CapturedAt:HH:mm:ss} UTC) ===
         Treasury Balance : {TreasuryBalanceSol:F4} SOL ({TreasuryBalanceLamports:N0} lamports)
+        SOL/USD Price    : ${SolUsdPrice:F2} (24h change: {Sol24hChangePct:+0.00;-0.00}%)
         Network Slot     : {CurrentSlot:N0}
         Recent Tx Count  : {RecentTransactionCount:N0}
         Estimated TPS    : {EstimatedTps:F1}

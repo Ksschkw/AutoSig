@@ -15,18 +15,25 @@ public static class SolanaServiceRegistration
         // Register the Signer Enclave as a singleton — one keypair, one instance
         services.AddSingleton<ISolanaService>(sp =>
         {
-            var rpc = sp.GetRequiredService<IRpcClient>();
+            var rpc    = sp.GetRequiredService<IRpcClient>();
             var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SolanaSignerEnclave>>();
             return new SolanaSignerEnclave(base58PrivateKey, rpc, logger);
         });
 
-        // Register the Market Data Service — provides real on-chain data to the Scout
+        // HttpClient for CoinGecko price oracle — shared singleton for connection reuse
+        services.AddSingleton<HttpClient>(_ => new HttpClient
+        {
+            DefaultRequestHeaders = { { "User-Agent", "AutoSig/1.0 (Hackathon)" } }
+        });
+
+        // Register the Market Data Service — provides real on-chain + price data to the Scout
         services.AddSingleton<IMarketDataService>(sp =>
         {
-            var rpc = sp.GetRequiredService<IRpcClient>();
+            var rpc    = sp.GetRequiredService<IRpcClient>();
             var solana = sp.GetRequiredService<ISolanaService>();
+            var http   = sp.GetRequiredService<HttpClient>();
             var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MarketDataService>>();
-            return new MarketDataService(rpc, solana, logger);
+            return new MarketDataService(rpc, solana, http, logger);
         });
 
         return services;
