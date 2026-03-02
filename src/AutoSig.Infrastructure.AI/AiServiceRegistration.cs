@@ -14,6 +14,7 @@ public static class AiServiceRegistration
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {openRouterApiKey}");
             client.DefaultRequestHeaders.Add("HTTP-Referer", "https://github.com/AutoSig");
             client.DefaultRequestHeaders.Add("X-Title", "AutoSig Agentic Wallet");
+            client.Timeout = TimeSpan.FromSeconds(30);
         })
         .AddTypedClient<ILlmProvider>((client, sp) =>
         {

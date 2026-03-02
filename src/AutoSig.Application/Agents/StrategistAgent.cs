@@ -51,6 +51,7 @@ public sealed class StrategistAgent(
 
     public async Task Handle(MarketOpportunityFoundEvent notification, CancellationToken cancellationToken)
     {
+        Console.WriteLine("[DEBUG] StrategistAgent received the event. Calling LLM...");
         logger.LogInformation("[Strategist] Analyzing opportunity and crafting proposal...");
 
         try

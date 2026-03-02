@@ -97,11 +97,23 @@ AnsiConsole.MarkupLine($"[grey]  Balance    : [white]{balance / 1_000_000_000.0:
 
 if (balance < 10_000_000) // Less than 0.01 SOL — auto-airdrop for demo
 {
-    AnsiConsole.MarkupLine("[yellow]  ⚡ Low balance detected — requesting Devnet airdrop...[/]");
-    await solana.RequestAirdropAsync(1_000_000_000); // 1 SOL
-    await Task.Delay(3000); // Wait for airdrop confirmation
-    balance = await solana.GetBalanceLamportsAsync();
-    AnsiConsole.MarkupLine($"[green]  ✅ Airdrop received. New balance: {balance / 1_000_000_000.0:F4} SOL[/]");
+    try
+    {
+        AnsiConsole.MarkupLine("[yellow]  ⚡ Low balance detected — requesting Devnet airdrop...[/]");
+        await solana.RequestAirdropAsync(1_000_000_000); // 1 SOL
+        await Task.Delay(3000); // Wait for airdrop confirmation
+        balance = await solana.GetBalanceLamportsAsync();
+        AnsiConsole.MarkupLine($"[green]  ✅ Airdrop received. New balance: {balance / 1_000_000_000.0:F4} SOL[/]");
+    }
+    catch (Exception)
+    {
+        AnsiConsole.MarkupLine("\n[red]  ❌ Auto-airdrop failed (Devnet faucet is likely rate-limited or down).[/]");
+        AnsiConsole.MarkupLine("[yellow]  Please manually fund your wallet.[/]");
+        AnsiConsole.MarkupLine($"[grey]  1. Go to [link=https://faucet.solana.com/]https://faucet.solana.com/[/][/]");
+        AnsiConsole.MarkupLine($"[grey]  2. Enter this address: [/][white]{publicKey}[/]");
+        AnsiConsole.MarkupLine("[grey]  3. Claim Devnet SOL, then wait 5 seconds.[/]");
+        AnsiConsole.MarkupLine("\n[yellow]  The agents will still plan trades, but the Executor will fail until funded.[/]\n");
+    }
 }
 
 AnsiConsole.Write(new Rule("[green]SYSTEM READY[/]") { Style = Style.Parse("green") });
