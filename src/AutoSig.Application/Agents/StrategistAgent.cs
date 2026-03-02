@@ -18,9 +18,10 @@ internal sealed record LlmTradeProposalResponse(
 );
 
 /// <summary>
-/// The Strategist Agent.
-/// Listens for MarketOpportunityFoundEvent, prompts the LLM to create a structured trade proposal,
-/// then emits a ProposalGeneratedEvent.
+/// The Strategist Agent — the BRAIN of the swarm.
+/// Receives REAL market data from the Scout, feeds it to the LLM along with
+/// actual on-chain state, and generates a concrete trade proposal.
+/// The LLM now operates on facts, not fiction.
 /// </summary>
 public sealed class StrategistAgent(
     IMediator mediator,
@@ -28,8 +29,9 @@ public sealed class StrategistAgent(
     ILogger<StrategistAgent> logger) : INotificationHandler<MarketOpportunityFoundEvent>
 {
     private const string SystemPrompt = """
-        You are the Strategist Agent of AutoSig, an autonomous multi-agent treasury system on Solana.
-        Your role is to analyze market opportunities and generate a concrete, safe transaction proposal.
+        You are the Strategist Agent of AutoSig, an autonomous multi-agent treasury system on Solana Devnet.
+        You receive REAL on-chain market data from the Scout Agent. Your role is to analyze this data
+        and generate a concrete, safe transaction proposal.
         
         You MUST respond with a single, valid JSON object. No markdown, no explanation, ONLY raw JSON.
         The JSON must conform to this exact schema:
@@ -38,25 +40,39 @@ public sealed class StrategistAgent(
           "amount_lamports": <integer, max 500000000 which is 0.5 SOL>,
           "destination_address": "<valid Solana Base58 address>",
           "mint_address": "<Base58 mint address or null>",
-          "rationale": "<1-2 sentence explanation of the proposal>",
+          "rationale": "<1-2 sentence explanation referencing the actual market data you received>",
           "self_assessed_risk": <float between 0.0 and 1.0>
         }
         
         IMPORTANT CONSTRAINTS:
         - Never propose more than 500000000 lamports (0.5 SOL).
+        - Scale your proposed amount relative to the treasury balance — NEVER propose more than 25% of the current balance.
         - For SolTransfer, use destination: "DVt1X6D2nLaVBFQKnafm4gNPucLxUhFB9SrBKBkH7CqP" (our test protocol vault).
         - For SplTokenMint, destination_address is the wallet to receive minted tokens.
         - Keep self_assessed_risk honest. A simple transfer should be 0.1–0.2.
+        - Reference the actual market data (TPS, balance, sentiment) in your rationale.
+        - If the market sentiment is Bearish, propose a minimal amount (< 10_000_000 lamports).
         """;
 
     public async Task Handle(MarketOpportunityFoundEvent notification, CancellationToken cancellationToken)
     {
-        Console.WriteLine("[DEBUG] StrategistAgent received the event. Calling LLM...");
-        logger.LogInformation("[Strategist] Analyzing opportunity and crafting proposal...");
+        logger.LogInformation("[Strategist] 🧠 Analyzing real market data and crafting proposal...");
 
         try
         {
-            var userMessage = $"Market Opportunity Detected:\n{notification.OpportunityDescription}\nConfidence Score: {notification.ConfidenceScore:P0}\n\nGenerate a transaction proposal.";
+            // Feed REAL on-chain data to the LLM — not fake opportunities
+            var userMessage = $"""
+                === LIVE MARKET DATA FROM SCOUT ===
+                {notification.Context.ToSummary()}
+                
+                === SCOUT'S ANALYSIS ===
+                Opportunity: {notification.OpportunityDescription}
+                Scout Confidence: {notification.ConfidenceScore:P0}
+                
+                Based on this REAL on-chain data, generate a transaction proposal.
+                Remember: scale the amount to be proportional to the treasury balance.
+                Current treasury: {notification.Context.TreasuryBalanceLamports:N0} lamports ({notification.Context.TreasuryBalanceSol:F4} SOL).
+                """;
 
             var response = await llm.CompleteTypedAsync<LlmTradeProposalResponse>(SystemPrompt, userMessage, cancellationToken);
 

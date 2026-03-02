@@ -20,6 +20,15 @@ public static class SolanaServiceRegistration
             return new SolanaSignerEnclave(base58PrivateKey, rpc, logger);
         });
 
+        // Register the Market Data Service — provides real on-chain data to the Scout
+        services.AddSingleton<IMarketDataService>(sp =>
+        {
+            var rpc = sp.GetRequiredService<IRpcClient>();
+            var solana = sp.GetRequiredService<ISolanaService>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MarketDataService>>();
+            return new MarketDataService(rpc, solana, logger);
+        });
+
         return services;
     }
 }

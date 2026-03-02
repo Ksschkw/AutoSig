@@ -6,4 +6,7 @@
     <Project Path="src/AutoSig.Infrastructure.AI/AutoSig.Infrastructure.AI.csproj" />
     <Project Path="src/AutoSig.Infrastructure.Solana/AutoSig.Infrastructure.Solana.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="src/AutoSig.Tests/AutoSig.Tests.csproj" />
+  </Folder>
 </Solution>

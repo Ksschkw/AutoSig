@@ -33,10 +33,6 @@ if (args.Contains("--generate-key"))
 }
 
 // Keys are read from environment variables or .env file to keep secrets out of source control.
-// Set these before running:
-//   $env:AUTOSIG_OPENROUTER_KEY = "sk-or-..."
-//   $env:AUTOSIG_SOLANA_PRIVATE_KEY = "<base64 encoded keypair bytes>"
-
 var openRouterApiKey = Environment.GetEnvironmentVariable("AUTOSIG_OPENROUTER_KEY")
     ?? throw new InvalidOperationException("Missing env var: AUTOSIG_OPENROUTER_KEY");
 
@@ -47,9 +43,21 @@ var solanaPrivateKey = Environment.GetEnvironmentVariable("AUTOSIG_SOLANA_PRIVAT
 var llmModel = Environment.GetEnvironmentVariable("AUTOSIG_LLM_MODEL")
     ?? "meta-llama/llama-3.3-70b-instruct:free";
 
-AnsiConsole.MarkupLine($"[grey]  LLM Model  : [white]{llmModel}[/][/]");
-AnsiConsole.MarkupLine($"[grey]  Chain      : [white]Solana Devnet[/][/]");
-AnsiConsole.MarkupLine($"[grey]  Framework  : [white].NET 10[/][/]");
+// ── System Info Table ────────────────────────────────────────────────────────
+var configTable = new Table()
+    .Border(TableBorder.Simple)
+    .BorderStyle(new Style(Color.Grey))
+    .AddColumn("[grey]Component[/]")
+    .AddColumn("[white]Configuration[/]");
+
+configTable.AddRow("[grey]LLM Model[/]", $"[white]{llmModel}[/]");
+configTable.AddRow("[grey]Chain[/]", "[white]Solana Devnet[/]");
+configTable.AddRow("[grey]Framework[/]", "[white].NET 10[/]");
+configTable.AddRow("[grey]Agents[/]", "[white]Scout → Strategist → Risk Manager → Executor[/]");
+configTable.AddRow("[grey]Guardrails[/]", "[yellow]Hard (C#) + Policy (Velocity/Drawdown) + AI (LLM)[/]");
+configTable.AddRow("[grey]Market Data[/]", "[green]LIVE — Real-time Solana RPC[/]");
+
+AnsiConsole.Write(configTable);
 AnsiConsole.Write(new Rule("[cyan]AGENT SWARM STARTING[/]") { Style = Style.Parse("cyan") });
 AnsiConsole.WriteLine();
 
@@ -72,7 +80,7 @@ var host = Host.CreateDefaultBuilder(args)
         // Infrastructure: AI (OpenRouter)
         services.AddAiServices(openRouterApiKey, llmModel);
 
-        // Infrastructure: Solana (Devnet RPC + Signer Enclave)
+        // Infrastructure: Solana (Devnet RPC + Signer Enclave + Market Data)
         services.AddSolanaServices(solanaPrivateKey);
 
         // Console UI Agent (listens to all swarm events for rendering)
@@ -92,6 +100,30 @@ var solana = host.Services.GetRequiredService<AutoSig.Domain.Interfaces.ISolanaS
 var publicKey = solana.GetPublicKey();
 var balance = await solana.GetBalanceLamportsAsync();
 
+// ── Security Policy Display ──────────────────────────────────────────────────
+var policy = new AutoSig.Domain.Models.TradingPolicy();
+var securityTable = new Table()
+    .Border(TableBorder.Simple)
+    .BorderStyle(new Style(Color.Yellow))
+    .AddColumn("[yellow]Security Policy[/]")
+    .AddColumn("[white]Value[/]");
+
+securityTable.AddRow("[yellow]Max Single Tx[/]", $"[white]{policy.MaxSingleTransactionLamports / 1e9:F2} SOL[/]");
+securityTable.AddRow("[yellow]Max Trades/Hour[/]", $"[white]{policy.MaxTradesPerHour}[/]");
+securityTable.AddRow("[yellow]Max Trades/Day[/]", $"[white]{policy.MaxTradesPerDay}[/]");
+securityTable.AddRow("[yellow]Trade Cooldown[/]", $"[white]{policy.MinTimeBetweenTrades.TotalSeconds}s[/]");
+securityTable.AddRow("[yellow]Max Daily Drawdown[/]", $"[white]{policy.MaxDailyDrawdownPercent:P0}[/]");
+securityTable.AddRow("[yellow]Reserve Floor[/]", $"[white]{policy.MinReserveBalanceLamports / 1e9:F2} SOL[/]");
+
+AnsiConsole.Write(new Panel(securityTable)
+{
+    Header = new PanelHeader("[bold yellow] 🛡️ ACTIVE TRADING POLICY [/]"),
+    Border = BoxBorder.Rounded,
+    BorderStyle = new Style(Color.Yellow),
+    Padding = new Padding(1, 0)
+});
+
+// ── Wallet Info ──────────────────────────────────────────────────────────────
 AnsiConsole.MarkupLine($"[grey]  Treasury   : [white]{publicKey}[/][/]");
 AnsiConsole.MarkupLine($"[grey]  Balance    : [white]{balance / 1_000_000_000.0:F4} SOL ({balance:N0} lamports)[/][/]");
 
@@ -116,7 +148,7 @@ if (balance < 10_000_000) // Less than 0.01 SOL — auto-airdrop for demo
     }
 }
 
-AnsiConsole.Write(new Rule("[green]SYSTEM READY[/]") { Style = Style.Parse("green") });
+AnsiConsole.Write(new Rule("[green]SYSTEM READY — LIVE MARKET DATA MODE[/]") { Style = Style.Parse("green") });
 AnsiConsole.WriteLine();
 
 await host.RunAsync();

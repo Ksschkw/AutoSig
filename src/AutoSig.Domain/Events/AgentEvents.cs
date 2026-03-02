@@ -3,10 +3,11 @@ using MediatR;
 
 namespace AutoSig.Domain.Events;
 
-/// <summary>Emitted by the Scout Agent when it detects a potential opportunity.</summary>
+/// <summary>Emitted by the Scout Agent when it detects a potential opportunity using live market data.</summary>
 public sealed record MarketOpportunityFoundEvent(
     string OpportunityDescription,
-    double ConfidenceScore
+    double ConfidenceScore,
+    MarketContext Context
 ) : INotification;
 
 /// <summary>Emitted by the Strategist Agent after generating a concrete proposal.</summary>
