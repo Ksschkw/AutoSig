@@ -110,11 +110,25 @@ public sealed class ScoutAgent(
         // Strategy 4: Neutral conditions  small exploratory trade
         if (ctx.Sentiment == MarketSentiment.Neutral)
         {
-            return (
-                $"Market conditions neutral (TPS: {ctx.EstimatedTps:F0}, Balance: {ctx.TreasuryBalanceSol:F4} SOL). " +
-                "Recommending small exploratory transfer to maintain agent activity and demonstrate autonomous execution.",
-                0.65
-            );
+            var enableExploratory = Environment.GetEnvironmentVariable("AUTOSIG_ENABLE_EXPLORATORY_TRADES") != "false" &&
+                                    Environment.GetEnvironmentVariable("AUTOSIG_ENABLE_EXPLORATORY_TRADES") != "0";
+            
+            if (enableExploratory)
+            {
+                return (
+                    $"Market conditions neutral (TPS: {ctx.EstimatedTps:F0}, Balance: {ctx.TreasuryBalanceSol:F4} SOL). " +
+                    "Recommending small exploratory transfer to maintain agent activity and demonstrate autonomous execution.",
+                    0.65
+                );
+            }
+            else
+            {
+                return (
+                    $"Market conditions neutral. Exploratory trades are DISABLED via environment variable to preserve SOL. " +
+                    "Waiting for Bullish or HighActivity conditions before trading.",
+                    0.0
+                );
+            }
         }
 
         // Strategy 5: Bearish  minimal activity, demonstrate caution

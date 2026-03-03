@@ -1,4 +1,4 @@
-# 🤖 AutoSig — Autonomous Multi-Agent Treasury on Solana
+# AutoSig — Autonomous Multi-Agent Treasury on Solana
 
 > **DeFi Developer Challenge: Agentic Wallets for AI Agents** | Superteam Nigeria  
 > Built with .NET 10, MediatR, Solnet, and OpenRouter AI
