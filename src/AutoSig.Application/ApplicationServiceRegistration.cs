@@ -24,6 +24,10 @@ public static class ApplicationServiceRegistration
             cfg.RegisterServicesFromAssembly(typeof(ApplicationServiceRegistration).Assembly);
         });
 
+        // VelocityTracker is a singleton so Scout + RiskManager share the SAME instance.
+        // This lets Scout skip the LLM pipeline before hitting the rate limit.
+        services.AddSingleton<VelocityTracker>();
+
         // Scout is triggered externally by the ConsensusLoop  not a notification handler
         services.AddTransient<ScoutAgent>();
 

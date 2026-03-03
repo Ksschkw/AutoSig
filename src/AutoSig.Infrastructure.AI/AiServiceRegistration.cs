@@ -21,16 +21,16 @@ public static class AiServiceRegistration
         // These span different upstream providers so at least one should be available.
         var strategistFallbacks = new[]
         {
-            "meta-llama/llama-3.1-70b-instruct:free",
-            "google/gemma-3-27b-it:free",
-            "mistralai/mistral-7b-instruct:free",
+            "nvidia/nemotron-3-nano-30b-a3b:free",
+            "openai/gpt-oss-120b:free",
+            "openrouter/auto", 
         };
 
         var riskFallbacks = new[]
         {
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "google/gemma-3-12b-it:free",
-            "mistralai/mistral-7b-instruct:free",
+            "nvidia/nemotron-3-nano-30b-a3b:free",
+            "openai/gpt-oss-120b:free",
+            "openrouter/auto",
         };
 
         // ── Strategist LLM ────────────────────────────────────────────────────

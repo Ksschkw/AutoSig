@@ -14,7 +14,7 @@ public sealed class ConsensusLoopService(
     ILogger<ConsensusLoopService> logger) : BackgroundService
 {
     // How often the Scout scans for opportunities (adjustable for demo)
-    private static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(60);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

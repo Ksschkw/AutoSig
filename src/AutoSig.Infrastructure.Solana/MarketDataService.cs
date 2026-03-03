@@ -7,25 +7,19 @@ using System.Text.Json.Serialization;
 
 namespace AutoSig.Infrastructure.Solana;
 
-// CoinGecko response shape
-file sealed class CoinGeckoResponse
+// Binance 24h ticker response shape (free, no API key required)
+file sealed class BinanceTickerResponse
 {
-    [JsonPropertyName("solana")]
-    public CoinGeckoSolanaData? Solana { get; init; }
-}
+    [JsonPropertyName("lastPrice")]
+    public string LastPrice { get; init; } = "0";
 
-file sealed class CoinGeckoSolanaData
-{
-    [JsonPropertyName("usd")]
-    public double Usd { get; init; }
-
-    [JsonPropertyName("usd_24h_change")]
-    public double Usd24hChange { get; init; }
+    [JsonPropertyName("priceChangePercent")]
+    public string PriceChangePercent { get; init; } = "0";
 }
 
 /// <summary>
 /// Gathers real-time market context from the Solana Devnet using RPC calls,
-/// augmented with live SOL/USD price data from the CoinGecko public API (free, no key).
+/// augmented with live SOL/USD price data from the Binance public API (free, no key).
 /// </summary>
 public sealed class MarketDataService : IMarketDataService
 {
@@ -34,8 +28,8 @@ public sealed class MarketDataService : IMarketDataService
     private readonly HttpClient _http;
     private readonly ILogger<MarketDataService> _logger;
 
-    private const string CoinGeckoUrl =
-        "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&include_24hr_change=true";
+    private const string BinanceUrl =
+        "https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT";
 
     public MarketDataService(IRpcClient rpc, ISolanaService solana, HttpClient http, ILogger<MarketDataService> logger)
     {
@@ -47,14 +41,14 @@ public sealed class MarketDataService : IMarketDataService
 
     public async Task<MarketContext> GetMarketContextAsync(CancellationToken ct = default)
     {
-        _logger.LogInformation("[MarketData] Fetching live Solana Devnet state + CoinGecko price...");
+        _logger.LogInformation("[MarketData] Fetching live Solana Devnet state + Binance price...");
 
         // Parallel: RPC calls + price oracle at the same time
         var balanceTask   = _solana.GetBalanceLamportsAsync(ct);
         var slotTask      = GetCurrentSlotAsync();
         var blockHashTask = GetLatestBlockhashAsync();
         var perfTask      = GetRecentPerformanceAsync();
-        var priceTask     = GetCoinGeckoPriceAsync(ct);
+        var priceTask     = GetSolPriceAsync(ct);
 
         await Task.WhenAll(balanceTask, slotTask, blockHashTask, perfTask, priceTask);
 
@@ -85,25 +79,28 @@ public sealed class MarketDataService : IMarketDataService
         return context;
     }
 
-    private async Task<(double price, double change)> GetCoinGeckoPriceAsync(CancellationToken ct)
+    private async Task<(double price, double change)> GetSolPriceAsync(CancellationToken ct)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(8));
-            var data = await _http.GetFromJsonAsync<CoinGeckoResponse>(CoinGeckoUrl, cts.Token);
-            if (data?.Solana is { } sol)
+            var data = await _http.GetFromJsonAsync<BinanceTickerResponse>(BinanceUrl, cts.Token);
+            if (data is not null &&
+                double.TryParse(data.LastPrice, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var price) &&
+                double.TryParse(data.PriceChangePercent, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var changePct))
             {
-                _logger.LogInformation("[MarketData] CoinGecko: SOL = ${Price:F2} ({Change:+0.00;-0.00}%)", sol.Usd, sol.Usd24hChange);
-                return (sol.Usd, sol.Usd24hChange);
+                _logger.LogInformation("[MarketData] Binance: SOL = ${Price:F2} ({Change:+0.00;-0.00}%)", price, changePct);
+                return (price, changePct);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[MarketData] CoinGecko request failed. Proceeding without price data.");
+            _logger.LogWarning(ex, "[MarketData] Binance request failed. Proceeding without price data.");
         }
         return (0, 0);
     }
+
 
     private async Task<ulong> GetCurrentSlotAsync()
     {

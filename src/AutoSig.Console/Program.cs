@@ -112,7 +112,7 @@ configTable.AddRow("[grey]Chain[/]",              "[white]Solana Devnet[/]");
 configTable.AddRow("[grey]Framework[/]",          "[white].NET 10[/]");
 configTable.AddRow("[grey]Agents[/]",             "[white]Scout -> Strategist -> Risk Manager -> Executor[/]");
 configTable.AddRow("[grey]Guardrails[/]",         "[yellow]Hard (C#) + Policy (Velocity/Drawdown) + AI (LLM)[/]");
-configTable.AddRow("[grey]Market Data[/]",        "[green]LIVE -- Solana RPC + CoinGecko Price Oracle[/]");
+configTable.AddRow("[grey]Market Data[/]",        "[green]LIVE -- Solana RPC + Binance Price Oracle[/]");
 
 AnsiConsole.Write(configTable);
 AnsiConsole.Write(new Rule("[cyan]AGENT SWARM STARTING[/]") { Style = Style.Parse("cyan") });

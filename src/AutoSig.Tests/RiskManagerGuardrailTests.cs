@@ -1,4 +1,5 @@
-﻿using AutoSig.Application.Agents;
+﻿using AutoSig.Application;
+using AutoSig.Application.Agents;
 using Xunit;
 using AutoSig.Domain.Events;
 using AutoSig.Domain.Interfaces;
@@ -21,7 +22,7 @@ public class RiskManagerGuardrailTests
     private readonly ISolanaService _solana = Substitute.For<ISolanaService>();
     private readonly ILogger<RiskManagerAgent> _logger = Substitute.For<ILogger<RiskManagerAgent>>();
 
-    private RiskManagerAgent CreateAgent() => new(_mediator, _llm, _solana, new TradingPolicy(), _logger);
+    private RiskManagerAgent CreateAgent() => new(_mediator, _llm, _solana, new TradingPolicy(), new VelocityTracker(new TradingPolicy()), _logger);
 
 
     private static TradeProposal CreateProposal(

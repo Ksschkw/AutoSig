@@ -15,16 +15,44 @@ namespace AutoSig.Application.Agents;
 public sealed class ScoutAgent(
     IMediator mediator,
     IMarketDataService marketData,
+    VelocityTracker velocityTracker,
     ILogger<ScoutAgent> logger)
 {
     /// <summary>Called periodically by the ConsensusLoop to trigger the swarm pipeline.</summary>
     public async Task ScanAsync(CancellationToken ct = default)
     {
         logger.LogInformation("[Scout]  SCAN STARTED ");
-        logger.LogInformation("[Scout]  Fetching live market data from Solana Devnet + CoinGecko...");
+
+        // ── Velocity pre-check ────────────────────────────────────────────────
+        // Skip the entire LLM pipeline if the hourly limit is already hit.
+        // No point calling DeepSeek only for RiskManager to block it in Phase 2.
+        if (velocityTracker.IsHourlyLimitReached())
+        {
+            logger.LogInformation("[Scout]  Hourly velocity limit already reached ({Count}/{Max}). " +
+                "Skipping LLM pipeline this cycle — waiting for hour window to reset.",
+                velocityTracker.TradesInLastHour(), 10);
+            return;
+        }
+        if (velocityTracker.IsCooldownActive())
+        {
+            logger.LogInformation("[Scout]  Trade cooldown active. Skipping cycle.");
+            return;
+        }
+
+        logger.LogInformation("[Scout]  Fetching live market data from Solana Devnet + Binance...");
 
         // Fetch actual on-chain data via RPC (parallel: slot, blockhash, TPS, balance, price)
         var context = await marketData.GetMarketContextAsync(ct);
+
+        // ── Low-balance protection ─────────────────────────────────────────────
+        // Don't trade if the treasury is dangerously low — preserve capital.
+        if (context.TreasuryBalanceLamports < 150_000_000) // < 0.15 SOL
+        {
+            logger.LogWarning("[Scout]  Treasury balance critically low ({Balance:F4} SOL). " +
+                "Skipping cycle to preserve capital. Request a devnet airdrop to continue.",
+                context.TreasuryBalanceSol);
+            return;
+        }
 
         logger.LogInformation("[Scout]  Market data received  {Balance:F4} SOL | ${Price:F2} USD ({Change:+0.00;-0.00}%) | {Sentiment}",
             context.TreasuryBalanceSol, context.SolUsdPrice, context.Sol24hChangePct, context.Sentiment);

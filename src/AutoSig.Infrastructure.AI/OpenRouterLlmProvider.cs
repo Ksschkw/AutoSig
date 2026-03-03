@@ -14,8 +14,12 @@ internal sealed record OpenRouterMessage(
 );
 
 internal sealed record OpenRouterRequest(
-    [property: JsonPropertyName("model")]    string Model,
-    [property: JsonPropertyName("messages")] List<OpenRouterMessage> Messages
+    [property: JsonPropertyName("model")]       string Model,
+    [property: JsonPropertyName("messages")]    List<OpenRouterMessage> Messages,
+    [property: JsonPropertyName("temperature")] double Temperature   = 0.3,
+    [property: JsonPropertyName("max_tokens")]  int    MaxTokens     = 8192,
+    [property: JsonPropertyName("top_p")]       double TopP          = 1.0,
+    [property: JsonPropertyName("stream")]      bool   Stream        = false
 );
 
 internal sealed record OpenRouterChoice(
@@ -94,11 +98,34 @@ public class OpenRouterLlmProvider : ILlmProvider
 
         _logger.LogInformation("[LLM] HTTP 200 from [{Model}].", model);
 
-        var result = await response.Content.ReadFromJsonAsync<OpenRouterResponse>(JsonOpts, ct)
+        var rawJson = await response.Content.ReadAsStringAsync(ct);
+        OpenRouterResponse result;
+        try
+        {
+            result = JsonSerializer.Deserialize<OpenRouterResponse>(rawJson, JsonOpts)
                      ?? throw new InvalidOperationException("OpenRouter returned null response body.");
+                     
+            if (result.Choices == null || result.Choices.Count == 0)
+            {
+                _logger.LogError("[LLM] OpenRouter returned HTTP 200 but no choices. Raw body: {Body}", 
+                    rawJson[..Math.Min(1000, rawJson.Length)]);
+                throw new InvalidOperationException("OpenRouter response had no choices. Check logs for raw body.");
+            }
+        }
+        catch (JsonException jEx)
+        {
+            _logger.LogError(jEx, "[LLM] Failed to parse OpenRouter HTTP 200 response. Raw body: {Body}", 
+                rawJson[..Math.Min(1000, rawJson.Length)]);
+            throw;
+        }
 
-        var text = result.Choices.FirstOrDefault()?.Message.Content
-                   ?? throw new InvalidOperationException("OpenRouter response had no choices.");
+        var text = result.Choices.FirstOrDefault()?.Message?.Content;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _logger.LogError("[LLM] OpenRouter message content was null or empty. Raw body: {Body}",
+                rawJson[..Math.Min(1000, rawJson.Length)]);
+            throw new InvalidOperationException("OpenRouter message content was null.");
+        }
 
         _logger.LogInformation("[LLM] Response: {Len} chars.", text.Length);
         return text.Trim();
@@ -161,12 +188,12 @@ public class OpenRouterLlmProvider : ILlmProvider
                 _logger.LogInformation("[LLM] Typed completion done ({Type}, attempt {A}).", typeof(T).Name, attempt);
                 return result;
             }
-            catch (JsonException ex)
+            catch (Exception ex) when (ex is JsonException || ex is InvalidOperationException || ex is NotSupportedException)
             {
                 _logger.LogWarning("[LLM] Attempt {A} -- JSON error: {E}. Self-correcting...", attempt, ex.Message);
                 currentMsg = userMessage +
                     $"\n\n[SYSTEM: Your last response was not valid JSON. Error: {ex.Message}. " +
-                    "Reply ONLY with a single valid JSON object. No markdown fences, no text.]";
+                    "Reply ONLY with a single valid JSON object conformant to the prompt schema. No markdown fences, no text.]";
             }
             // Let HttpRequestException bubble up — these are LLM availability errors,
             // NOT parse errors. The agent (Strategist/RiskManager) handles them.

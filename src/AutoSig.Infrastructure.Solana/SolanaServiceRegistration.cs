@@ -20,7 +20,7 @@ public static class SolanaServiceRegistration
             return new SolanaSignerEnclave(base58PrivateKey, rpc, logger);
         });
 
-        // HttpClient for CoinGecko price oracle  shared singleton for connection reuse
+        // HttpClient for Binance price oracle  shared singleton for connection reuse
         services.AddSingleton<HttpClient>(_ => new HttpClient
         {
             DefaultRequestHeaders = { { "User-Agent", "AutoSig/1.0 (Hackathon)" } }
