@@ -2,7 +2,7 @@
 
 > **DeFi Developer Challenge: Agentic Wallets for AI Agents** | Superteam Nigeria  
 > Autonomous Multi-Agent Treasury on Solana Devnet  
-> Built with .NET 10 · MediatR · Solnet · OpenRouter
+> Built with .NET 10 · MediatR · Solnet · OpenRouter · meta-llama via OpenRouter
 
 This document is the single source of truth for every architectural decision, every line of code that matters, every guardrail check, and every test case in the system. Start here.
 
@@ -29,6 +29,7 @@ This document is the single source of truth for every architectural decision, ev
 10. [Test Suite — Every Test Explained](#10-test-suite--every-test-explained)
 11. [Security Architecture](#11-security-architecture)
 12. [Key Design Decisions (with rationale)](#12-key-design-decisions-with-rationale)
+13. [Configuration Reference — Environment Variables](#13-configuration-reference--environment-variables)
 
 ---
 
@@ -874,4 +875,49 @@ The `.env` file is loaded at startup via `DotNetEnv.Env.Load()`. The keys are th
 
 ---
 
-*Documentation generated 2026-03-02. All code verified against the actual source files.*
+*Documentation last updated 2026-03-03. All code verified against actual source files.*
+
+---
+
+## 13. Configuration Reference — Environment Variables
+
+All configuration is managed through environment variables loaded from `.env` at startup. See `.env.example` for a complete, annotated reference. The key variables are:
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `AUTOSIG_SOLANA_PRIVATE_KEY` | Base64-encoded treasury keypair. Generate with `--generate-key`. |
+| `AUTOSIG_OPENROUTER_KEY` | OpenRouter API key (free tier works). |
+
+### Per-Agent LLM Models
+
+Each agent uses its own independently-configured LLM. This is a core differentiator — the Strategist uses a reasoning-heavy model while the Risk Manager uses a smaller, faster model for evaluation.
+
+| Variable | Default | Role |
+|---|---|---|
+| `AUTOSIG_STRATEGIST_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | Deep reasoning for trade proposals |
+| `AUTOSIG_RISK_MODEL` | `meta-llama/llama-3.1-8b-instruct:free` | Fast semantic risk evaluation |
+
+**LLM Failure Safety Behavior:** If the model returns HTTP 404/401 (wrong model ID or unavailable on account), the cycle is **halted entirely** — no transaction executes without a real AI decision. If the model times out (transient failure), a deterministic C# heuristic evaluator runs as a last resort. This distinction is intentional: a misconfigured model should halt loudly, while a temporarily slow model should degrade gracefully.
+
+### Output Verbosity
+
+| `AUTOSIG_OUTPUT_LEVEL` | Behavior |
+|---|---|
+| `brief` | Only the 4 agent summary panels. No step logs. |
+| `normal` | Key phase transitions per agent (recommended for demos). |
+| `verbose` | Every step from every agent, minus LLM internals. |
+| `debug` | Everything: attempt counts, raw JSON, full exception traces. |
+
+### Trading Policy
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTOSIG_MAX_TX_LAMPORTS` | `500000000` | Max lamports per transaction (0.5 SOL) |
+| `AUTOSIG_MIN_RESERVE_LAMPORTS` | `50000000` | Treasury reserve floor (0.05 SOL) |
+| `AUTOSIG_MAX_TRADES_PER_HOUR` | `10` | Hourly velocity cap |
+| `AUTOSIG_TRADE_COOLDOWN_SECONDS` | `15` | Minimum seconds between trades |
+| `AUTOSIG_MAX_DAILY_DRAWDOWN` | `0.05` | Max daily drawdown (5%) |
+| `AUTOSIG_SOLANA_CLUSTER` | `devnet` | RPC endpoint (`devnet`, `mainnet-beta`, or custom URL) |
+

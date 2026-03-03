@@ -1,4 +1,4 @@
-using AutoSig.Domain.Interfaces;
+﻿using AutoSig.Domain.Interfaces;
 using AutoSig.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Solnet.Programs;
@@ -23,7 +23,7 @@ public sealed class SolanaSignerEnclave : ISolanaService
 
     public SolanaSignerEnclave(string base58PrivateKey, IRpcClient rpcClient, ILogger<SolanaSignerEnclave> logger)
     {
-        // ⚠️ ENCLAVE: Private key loaded and locked in this object. Never serialized, logged, or exposed.
+        //  ENCLAVE: Private key loaded and locked in this object. Never serialized, logged, or exposed.
         _wallet = new Wallet(Convert.FromBase64String(base58PrivateKey));
         _rpcClient = rpcClient;
         _logger = logger;
@@ -50,27 +50,41 @@ public sealed class SolanaSignerEnclave : ISolanaService
     {
         try
         {
-            _logger.LogInformation("[Enclave] Building transaction for proposal {Id}...", proposal.Id.ToString()[..8]);
+            _logger.LogInformation("[Solana] ================ EXECUTOR: PROPOSAL {Id} ================",
+                proposal.Id.ToString()[..8]);
+            _logger.LogInformation("[Solana] Type: {Type} | Amount: {Amount:N0} lamports | Destination: {Dest}...",
+                proposal.Type, proposal.AmountLamports,
+                proposal.DestinationAddress[..Math.Min(12, proposal.DestinationAddress.Length)]);
 
+            _logger.LogInformation("[Solana] Step 1/4 -- Fetching latest blockhash from Devnet RPC...");
             var blockHashResponse = await _rpcClient.GetLatestBlockHashAsync();
             if (!blockHashResponse.WasSuccessful)
                 throw new InvalidOperationException("Failed to fetch recent block hash.");
-
             var blockHash = blockHashResponse.Result.Value.Blockhash;
+            _logger.LogInformation("[Solana] Step 1/4 -- Blockhash: {Hash}...", blockHash[..16]);
 
-            // Build transaction based on proposal type
+            _logger.LogInformation("[Solana] Step 2/4 -- Building {Type} transaction...", proposal.Type);
             byte[] txBytes = proposal.Type switch
             {
-                ProposalType.SolTransfer    => BuildSolTransfer(proposal, blockHash),
-                ProposalType.SplTokenMint   => await BuildSplMintTransactionAsync(proposal, blockHash),
-                _                           => BuildSolTransfer(proposal, blockHash)
+                ProposalType.SolTransfer  => BuildSolTransfer(proposal, blockHash),
+                ProposalType.SplTokenMint => await BuildSplMintTransactionAsync(proposal, blockHash),
+                _                         => BuildSolTransfer(proposal, blockHash)
             };
+            _logger.LogInformation("[Solana] Step 2/4 -- Transaction built ({Size} bytes).", txBytes.Length);
 
-            _logger.LogInformation("[Enclave] 🔐 Signing transaction with treasury keypair...");
+            _logger.LogInformation("[Solana] Step 3/4 -- Signing with treasury keypair {Key}...",
+                _wallet.Account.PublicKey.Key[..12]);
+
+            _logger.LogInformation("[Solana] Step 4/4 -- Submitting to Solana Devnet via RPC...");
             var sendResponse = await _rpcClient.SendTransactionAsync(txBytes);
 
             if (sendResponse.WasSuccessful && !string.IsNullOrEmpty(sendResponse.Result))
             {
+                _logger.LogInformation("[Solana] Transaction CONFIRMED on-chain!");
+                _logger.LogInformation("[Solana] Signature: {Sig}", sendResponse.Result);
+                _logger.LogInformation("[Solana] Explorer : https://explorer.solana.com/tx/{Sig}?cluster=devnet",
+                    sendResponse.Result);
+
                 return new TransactionResult
                 {
                     ProposalId    = proposal.Id,
@@ -81,18 +95,19 @@ public sealed class SolanaSignerEnclave : ISolanaService
             }
             else
             {
+                _logger.LogError("[Solana] RPC rejected the transaction: {Error}", sendResponse.RawRpcResponse);
                 return new TransactionResult
                 {
-                    ProposalId    = proposal.Id,
-                    Success       = false,
-                    ErrorMessage  = sendResponse.RawRpcResponse,
-                    ExecutedAt    = DateTime.UtcNow
+                    ProposalId   = proposal.Id,
+                    Success      = false,
+                    ErrorMessage = sendResponse.RawRpcResponse,
+                    ExecutedAt   = DateTime.UtcNow
                 };
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[Enclave] Transaction execution failed.");
+            _logger.LogError(ex, "[Solana] Transaction execution threw an exception.");
             return new TransactionResult
             {
                 ProposalId   = proposal.Id,
@@ -105,7 +120,7 @@ public sealed class SolanaSignerEnclave : ISolanaService
 
     private byte[] BuildSolTransfer(TradeProposal proposal, string blockHash)
     {
-        // Validate destination — must be a real Solana address (>= 32 chars Base58)
+        // Validate destination  must be a real Solana address (>= 32 chars Base58)
         var destination = proposal.DestinationAddress.Length >= 32
             ? proposal.DestinationAddress
             : _wallet.Account.PublicKey.Key; // failsafe: send back to self
@@ -124,11 +139,11 @@ public sealed class SolanaSignerEnclave : ISolanaService
     /// Builds a real SPL Token creation + mint transaction using Solnet's TokenProgram.
     /// This creates a brand-new token on-chain, then mints a supply to the destination wallet.
     /// 4 instructions:
-    ///   1. SystemProgram.CreateAccount  → allocate the mint account on chain
-    ///   2. TokenProgram.InitializeMint  → configure decimals + mint authority
-    ///   3. AssociatedTokenAccountProgram.CreateAssociatedTokenAccount → receiver's ATA
-    ///   4. TokenProgram.MintTo          → mint 1000 tokens (with 6 decimals = 1,000,000,000 raw units)
-    /// The mint Account is ephemeral — a fresh keypair generated per proposal.
+    ///   1. SystemProgram.CreateAccount   allocate the mint account on chain
+    ///   2. TokenProgram.InitializeMint   configure decimals + mint authority
+    ///   3. AssociatedTokenAccountProgram.CreateAssociatedTokenAccount  receiver's ATA
+    ///   4. TokenProgram.MintTo           mint 1000 tokens (with 6 decimals = 1,000,000,000 raw units)
+    /// The mint Account is ephemeral  a fresh keypair generated per proposal.
     /// Treasury wallet pays all fees and holds mint authority.
     /// </summary>
     private async Task<byte[]> BuildSplMintTransactionAsync(TradeProposal proposal, string blockHash)
@@ -143,7 +158,7 @@ public sealed class SolanaSignerEnclave : ISolanaService
         var rentResponse = await _rpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.MintAccountDataSize);
         var rentLamports = rentResponse.Result;
 
-        // Resolve the destination wallet — fall back to treasury if invalid
+        // Resolve the destination wallet  fall back to treasury if invalid
         var receiverWallet = proposal.DestinationAddress.Length >= 32
             ? new PublicKey(proposal.DestinationAddress)
             : _wallet.Account.PublicKey;
@@ -196,7 +211,7 @@ public sealed class SolanaSignerEnclave : ISolanaService
             // Both treasury + mint account must sign (mint account authorises its own creation)
             .Build([_wallet.Account, mintAccount]);
 
-        _logger.LogInformation("[Enclave] ✅ SPL Token mint TX built: {Decimals} decimals, {Amount} raw units → {Ata}",
+        _logger.LogInformation("[Enclave]  SPL Token mint TX built: {Decimals} decimals, {Amount} raw units  {Ata}",
             decimals, mintAmount, ataAddress.Key[..12]);
 
         return tx;

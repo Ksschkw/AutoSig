@@ -1,4 +1,4 @@
-using AutoSig.Domain.Interfaces;
+﻿using AutoSig.Domain.Interfaces;
 using AutoSig.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Solnet.Rpc;
@@ -164,7 +164,7 @@ public sealed class MarketDataService : IMarketDataService
     /// </summary>
     private static MarketSentiment DeriveSentiment(double tps, ulong balanceLamports, double priceChange24h)
     {
-        // Real price data wins when available — this is how real trading systems work
+        // Real price data wins when available  this is how real trading systems work
         if (priceChange24h > 5.0)  return MarketSentiment.HighActivity; // SOL pumping > 5%
         if (priceChange24h > 2.0)  return MarketSentiment.Bullish;       // SOL up > 2%
         if (priceChange24h < -2.0) return MarketSentiment.Bearish;       // SOL down > 2%

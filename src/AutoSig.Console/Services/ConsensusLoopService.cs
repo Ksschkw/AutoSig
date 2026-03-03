@@ -1,13 +1,13 @@
-using AutoSig.Application.Agents;
+﻿using AutoSig.Application.Agents;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace AutoSig.Console.Services;
 
 /// <summary>
-/// The Consensus Loop — runs as a .NET BackgroundService (IHostedService).
+/// The Consensus Loop  runs as a .NET BackgroundService (IHostedService).
 /// Triggers the Scout Agent on a configurable interval, which chains the
-/// entire Strategist → RiskManager → Executor pipeline via MediatR events.
+/// entire Strategist  RiskManager  Executor pipeline via MediatR events.
 /// </summary>
 public sealed class ConsensusLoopService(
     ScoutAgent scout,

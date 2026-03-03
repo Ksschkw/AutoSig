@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace AutoSig.Domain.Models;
 
@@ -14,16 +14,16 @@ public sealed record MarketContext
     /// <summary>Current SOL balance formatted as SOL (human-readable).</summary>
     public double TreasuryBalanceSol => TreasuryBalanceLamports / 1_000_000_000.0;
 
-    /// <summary>Current Solana network slot height — indicates chain liveness.</summary>
+    /// <summary>Current Solana network slot height  indicates chain liveness.</summary>
     public required ulong CurrentSlot { get; init; }
 
-    /// <summary>Recent number of transactions in the last epoch — network activity indicator.</summary>
+    /// <summary>Recent number of transactions in the last epoch  network activity indicator.</summary>
     public required long RecentTransactionCount { get; init; }
 
     /// <summary>Current estimated network TPS (transactions per second).</summary>
     public required double EstimatedTps { get; init; }
 
-    /// <summary>Current blockhash — proves data freshness.</summary>
+    /// <summary>Current blockhash  proves data freshness.</summary>
     public required string LatestBlockhash { get; init; }
 
     /// <summary>Timestamp when this context was captured.</summary>

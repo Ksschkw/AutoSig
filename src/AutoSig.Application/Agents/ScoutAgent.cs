@@ -1,4 +1,4 @@
-using AutoSig.Domain.Events;
+﻿using AutoSig.Domain.Events;
 using AutoSig.Domain.Interfaces;
 using AutoSig.Domain.Models;
 using MediatR;
@@ -7,10 +7,10 @@ using Microsoft.Extensions.Logging;
 namespace AutoSig.Application.Agents;
 
 /// <summary>
-/// The Scout Agent — the EYES of the swarm.
+/// The Scout Agent  the EYES of the swarm.
 /// Queries the Solana blockchain via RPC to gather real-time market data,
 /// analyzes on-chain activity patterns, and emits opportunities for the Strategist.
-/// NO hardcoded fake data — everything comes from the live Devnet.
+/// NO hardcoded fake data  everything comes from the live Devnet.
 /// </summary>
 public sealed class ScoutAgent(
     IMediator mediator,
@@ -20,27 +20,34 @@ public sealed class ScoutAgent(
     /// <summary>Called periodically by the ConsensusLoop to trigger the swarm pipeline.</summary>
     public async Task ScanAsync(CancellationToken ct = default)
     {
-        logger.LogInformation("[Scout] 🔭 Scanning Solana Devnet for real-time opportunities...");
+        logger.LogInformation("[Scout]  SCAN STARTED ");
+        logger.LogInformation("[Scout]  Fetching live market data from Solana Devnet + CoinGecko...");
 
-        // Fetch actual on-chain data via RPC
+        // Fetch actual on-chain data via RPC (parallel: slot, blockhash, TPS, balance, price)
         var context = await marketData.GetMarketContextAsync(ct);
 
-        // Analyze the real market context to generate an opportunity description
+        logger.LogInformation("[Scout]  Market data received  {Balance:F4} SOL | ${Price:F2} USD ({Change:+0.00;-0.00}%) | {Sentiment}",
+            context.TreasuryBalanceSol, context.SolUsdPrice, context.Sol24hChangePct, context.Sentiment);
+
+        // Translate real market signals into a typed opportunity
         var (opportunity, confidence) = AnalyzeMarket(context);
 
-        logger.LogInformation("[Scout] Opportunity identified: {Opportunity} (confidence: {Confidence:P0})",
-            opportunity, confidence);
+        logger.LogInformation("[Scout]  Opportunity identified (confidence: {Confidence:P0}): {Opportunity}",
+            confidence, opportunity[..Math.Min(80, opportunity.Length)]);
+        logger.LogInformation("[Scout]  Publishing MarketOpportunityFoundEvent to Strategist...");
 
         await mediator.Publish(new MarketOpportunityFoundEvent(opportunity, confidence, context), ct);
+
+        logger.LogInformation("[Scout]  MarketOpportunityFoundEvent published successfully.");
     }
 
     /// <summary>
     /// Analyzes live on-chain data to determine the best trading opportunity.
-    /// This is deterministic logic based on actual network state — not random strings.
+    /// This is deterministic logic based on actual network state  not random strings.
     /// </summary>
     private static (string opportunity, double confidence) AnalyzeMarket(MarketContext ctx)
     {
-        // Strategy 1: Low treasury balance — conservative, small test transfer
+        // Strategy 1: Low treasury balance  conservative, small test transfer
         if (ctx.TreasuryBalanceLamports < 100_000_000) // < 0.1 SOL
         {
             return (
@@ -50,7 +57,7 @@ public sealed class ScoutAgent(
             );
         }
 
-        // Strategy 2: High network activity — the chain is buzzing, good time to act
+        // Strategy 2: High network activity  the chain is buzzing, good time to act
         if (ctx.Sentiment == MarketSentiment.HighActivity)
         {
             return (
@@ -61,7 +68,7 @@ public sealed class ScoutAgent(
             );
         }
 
-        // Strategy 3: Bullish sentiment — moderate deployment
+        // Strategy 3: Bullish sentiment  moderate deployment
         if (ctx.Sentiment == MarketSentiment.Bullish)
         {
             return (
@@ -72,7 +79,7 @@ public sealed class ScoutAgent(
             );
         }
 
-        // Strategy 4: Neutral conditions — small exploratory trade
+        // Strategy 4: Neutral conditions  small exploratory trade
         if (ctx.Sentiment == MarketSentiment.Neutral)
         {
             return (
@@ -82,7 +89,7 @@ public sealed class ScoutAgent(
             );
         }
 
-        // Strategy 5: Bearish — minimal activity, demonstrate caution
+        // Strategy 5: Bearish  minimal activity, demonstrate caution
         return (
             $"Bearish market indicators detected. Network TPS low at {ctx.EstimatedTps:F0}. " +
             $"Treasury at {ctx.TreasuryBalanceSol:F4} SOL. " +

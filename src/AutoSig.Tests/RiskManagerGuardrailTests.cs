@@ -1,4 +1,4 @@
-using AutoSig.Application.Agents;
+﻿using AutoSig.Application.Agents;
 using Xunit;
 using AutoSig.Domain.Events;
 using AutoSig.Domain.Interfaces;
@@ -17,11 +17,12 @@ namespace AutoSig.Tests;
 public class RiskManagerGuardrailTests
 {
     private readonly IMediator _mediator = Substitute.For<IMediator>();
-    private readonly ILlmProvider _llm = Substitute.For<ILlmProvider>();
+    private readonly IRiskManagerLlmProvider _llm = Substitute.For<IRiskManagerLlmProvider>();
     private readonly ISolanaService _solana = Substitute.For<ISolanaService>();
     private readonly ILogger<RiskManagerAgent> _logger = Substitute.For<ILogger<RiskManagerAgent>>();
 
-    private RiskManagerAgent CreateAgent() => new(_mediator, _llm, _solana, _logger);
+    private RiskManagerAgent CreateAgent() => new(_mediator, _llm, _solana, new TradingPolicy(), _logger);
+
 
     private static TradeProposal CreateProposal(
         ulong amount = 100_000_000,
@@ -36,7 +37,7 @@ public class RiskManagerGuardrailTests
             SelfAssessedRisk = 0.1
         };
 
-    // ── HARD GUARDRAIL TESTS ─────────────────────────────────────────────────
+    //  HARD GUARDRAIL TESTS 
 
     [Fact]
     public async Task HardGuardrail_RejectsAmountExceedingMaximum()
@@ -56,7 +57,7 @@ public class RiskManagerGuardrailTests
                 e.Assessment.Reasoning.Contains("exceeds maximum")),
             Arg.Any<CancellationToken>());
 
-        // The LLM should NEVER have been called — hard guardrail catches it first
+        // The LLM should NEVER have been called  hard guardrail catches it first
         await _llm.DidNotReceive().CompleteTypedAsync<object>(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -80,7 +81,7 @@ public class RiskManagerGuardrailTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── POLICY GUARDRAIL TESTS ───────────────────────────────────────────────
+    //  POLICY GUARDRAIL TESTS 
 
     [Fact]
     public async Task PolicyGuardrail_RejectsWhenBelowReserveFloor()
@@ -105,7 +106,7 @@ public class RiskManagerGuardrailTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── DOMAIN MODEL TESTS ──────────────────────────────────────────────────
+    //  DOMAIN MODEL TESTS 
 
     [Fact]
     public void TradingPolicy_HasCorrectDefaults()
@@ -151,7 +152,7 @@ public class RiskManagerGuardrailTests
 
         var summary = ctx.ToSummary();
         Assert.Contains("1.0000 SOL", summary);
-        // Use StartsWith on TPS to avoid locale‑specific decimal/thousands separators
+        // Use StartsWith on TPS to avoid localespecific decimal/thousands separators
         Assert.Contains("1200", summary);
         Assert.Contains("HighActivity", summary);
     }

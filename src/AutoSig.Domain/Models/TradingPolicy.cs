@@ -1,12 +1,12 @@
-namespace AutoSig.Domain.Models;
+﻿namespace AutoSig.Domain.Models;
 
 /// <summary>
 /// Immutable trading policy that enforces velocity limits, drawdown protection,
-/// and program whitelisting. These are C# constants — no LLM can override them.
+/// and program whitelisting. These are C# constants  no LLM can override them.
 /// </summary>
 public sealed class TradingPolicy
 {
-    // ── Velocity Limits ──────────────────────────────────────────────────────
+    //  Velocity Limits 
     /// <summary>Maximum number of trades allowed per rolling hour.</summary>
     public int MaxTradesPerHour { get; init; } = 10;
 
@@ -16,18 +16,18 @@ public sealed class TradingPolicy
     /// <summary>Minimum cooldown between consecutive trades.</summary>
     public TimeSpan MinTimeBetweenTrades { get; init; } = TimeSpan.FromSeconds(15);
 
-    // ── Drawdown Protection ──────────────────────────────────────────────────
+    //  Drawdown Protection 
     /// <summary>Maximum percentage of starting balance that can be lost before emergency halt (0.0 to 1.0).</summary>
     public double MaxDailyDrawdownPercent { get; init; } = 0.05; // 5%
 
     /// <summary>Minimum SOL balance (in lamports) that must remain in the treasury at all times.</summary>
     public ulong MinReserveBalanceLamports { get; init; } = 50_000_000; // 0.05 SOL
 
-    // ── Amount Limits ────────────────────────────────────────────────────────
+    //  Amount Limits 
     /// <summary>Maximum amount per single transaction in lamports.</summary>
     public ulong MaxSingleTransactionLamports { get; init; } = 500_000_000; // 0.5 SOL
 
-    // ── Program Whitelisting ─────────────────────────────────────────────────
+    //  Program Whitelisting 
     /// <summary>Only these Solana program addresses can appear in transaction instructions.</summary>
     public HashSet<string> AllowedProgramIds { get; init; } =
     [
@@ -39,6 +39,6 @@ public sealed class TradingPolicy
     /// <summary>Addresses explicitly banned from receiving funds.</summary>
     public HashSet<string> BlockedDestinations { get; init; } =
     [
-        "11111111111111111111111111111111", // System Program — never send SOL here
+        "11111111111111111111111111111111", // System Program  never send SOL here
     ];
 }

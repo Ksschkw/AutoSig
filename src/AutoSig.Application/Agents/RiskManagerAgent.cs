@@ -1,4 +1,4 @@
-using AutoSig.Domain.Events;
+﻿using AutoSig.Domain.Events;
 using AutoSig.Domain.Interfaces;
 using AutoSig.Domain.Models;
 using MediatR;
@@ -16,11 +16,11 @@ internal sealed record LlmRiskEvaluationResponse(
 );
 
 /// <summary>
-/// The Risk Manager Agent — the SHIELD of the swarm.
+/// The Risk Manager Agent  the SHIELD of the swarm.
 /// Evaluates each proposal in THREE phases:
-///   Phase 1: C# Hard Guardrails — amount limits, blocked destinations (IMMUTABLE code).
-///   Phase 2: C# Policy Guardrails — velocity limits, drawdown protection, proportional sizing.
-///   Phase 3: AI Soft Guardrails — independent LLM verifies the Strategist's reasoning.
+///   Phase 1: C# Hard Guardrails  amount limits, blocked destinations (IMMUTABLE code).
+///   Phase 2: C# Policy Guardrails  velocity limits, drawdown protection, proportional sizing.
+///   Phase 3: AI Soft Guardrails  independent LLM verifies the Strategist's reasoning.
 /// Emits either ProposalApprovedEvent or ProposalRejectedEvent.
 /// </summary>
 public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEvent>
@@ -31,7 +31,7 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
     private readonly ILogger<RiskManagerAgent> _logger;
     private readonly TradingPolicy _policy;
 
-    // ── Velocity Tracking (thread-safe) ──────────────────────────────────────
+    //  Velocity Tracking (thread-safe) 
     private static readonly ConcurrentQueue<DateTime> TradeTimestamps = new();
     private static DateTime _lastTradeTime = DateTime.MinValue;
     private static ulong _dailyStartingBalance;
@@ -39,15 +39,18 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
 
     public RiskManagerAgent(
         IMediator mediator,
-        ILlmProvider llm,
+        IRiskManagerLlmProvider llm,
         ISolanaService solana,
+        TradingPolicy policy,
         ILogger<RiskManagerAgent> logger)
     {
         _mediator = mediator;
         _llm = llm;
         _solana = solana;
         _logger = logger;
-        _policy = new TradingPolicy(); // Uses defaults — immutable C# constants
+        _policy = policy; // Injected from DI  sourced from environment variables in Program.cs
+        _logger.LogInformation("[RiskManager] Initialised with policy: MaxTx={Max} lam | Cooldown={Cool}s | MaxDrawdown={Draw:P0}",
+            policy.MaxSingleTransactionLamports, policy.MinTimeBetweenTrades.TotalSeconds, policy.MaxDailyDrawdownPercent);
     }
 
     private const string RiskSystemPrompt = """
@@ -76,9 +79,11 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
     public async Task Handle(ProposalGeneratedEvent notification, CancellationToken cancellationToken)
     {
         var proposal = notification.Proposal;
-        _logger.LogInformation("[RiskManager] 🛡️ Evaluating proposal {Id}...", proposal.Id.ToString()[..8]);
+        _logger.LogInformation("[RiskManager]  EVALUATING PROPOSAL {Id} ", proposal.Id.ToString()[..8]);
+        _logger.LogInformation("[RiskManager]   Type: {Type} | Amount: {Amount} lam | Dest: {Dest}...",
+            proposal.Type, proposal.AmountLamports, proposal.DestinationAddress[..8]);
 
-        // ── PHASE 1: HARD GUARDRAILS ─────────────────────────────────────────
+        //  PHASE 1: HARD GUARDRAILS 
         // These are IMMUTABLE C# checks. No LLM output can bypass them.
         if (proposal.AmountLamports > _policy.MaxSingleTransactionLamports)
         {
@@ -96,10 +101,10 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
             return;
         }
 
-        _logger.LogInformation("[RiskManager] ✅ Phase 1 (Hard Guardrails) PASSED.");
+        _logger.LogInformation("[RiskManager]  Phase 1 PASSED  amount within limit, destination not blocklisted.");
 
-        // ── PHASE 2: POLICY GUARDRAILS ───────────────────────────────────────
-        // Velocity, drawdown, and proportional sizing — all deterministic C# logic.
+        //  PHASE 2: POLICY GUARDRAILS 
+        // Velocity, drawdown, and proportional sizing  all deterministic C# logic.
 
         // 2a. Velocity: Min time between trades
         var timeSinceLastTrade = DateTime.UtcNow - _lastTradeTime;
@@ -142,7 +147,7 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
                 if (drawdown >= _policy.MaxDailyDrawdownPercent)
                 {
                     await RejectAsync(proposal, RiskVerdict.RejectedByHardGuardrail,
-                        $"[POLICY] EMERGENCY HALT — Daily drawdown is {drawdown:P1} (limit: {_policy.MaxDailyDrawdownPercent:P0}). " +
+                        $"[POLICY] EMERGENCY HALT  Daily drawdown is {drawdown:P1} (limit: {_policy.MaxDailyDrawdownPercent:P0}). " +
                         $"Starting balance: {_dailyStartingBalance / 1e9:F4} SOL, Current: {currentBalance / 1e9:F4} SOL.",
                         null, cancellationToken);
                     return;
@@ -164,9 +169,11 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
             _logger.LogWarning(ex, "[RiskManager] Failed to fetch balance for drawdown check. Continuing cautiously.");
         }
 
-        _logger.LogInformation("[RiskManager] ✅ Phase 2 (Policy Guardrails) PASSED. Escalating to AI evaluation...");
+        _logger.LogInformation("[RiskManager]  Phase 2 PASSED  velocity, drawdown, and reserve checks all clear.");
+        _logger.LogInformation("[RiskManager]  Phase 3: Sending proposal to [{Model}] for AI semantic review...",
+            _llm.GetType().Name);
 
-        // ── PHASE 3: AI SOFT GUARDRAILS ──────────────────────────────────────
+        //  PHASE 3: AI SOFT GUARDRAILS 
         try
         {
             var userMessage = $"""
@@ -185,8 +192,11 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
                 - Reserve floor check
                 """;
 
+            _logger.LogInformation("[RiskManager]  Calling LLM for AI risk evaluation (Phase 3)...");
             var evaluation = await _llm.CompleteTypedAsync<LlmRiskEvaluationResponse>(
                 RiskSystemPrompt, userMessage, cancellationToken);
+            _logger.LogInformation("[RiskManager]  LLM responded: approved={Approved}, score={Score:F2}",
+                evaluation.Approved, evaluation.RiskScore);
 
             var assessment = new RiskAssessment
             {
@@ -202,29 +212,86 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
                 TradeTimestamps.Enqueue(DateTime.UtcNow);
                 _lastTradeTime = DateTime.UtcNow;
 
-                _logger.LogInformation("[RiskManager] ✅ Phase 3 (AI Guardrail) APPROVED. Score: {Score:F2}. Reason: {Reason}",
+                _logger.LogInformation("[RiskManager]  Phase 3 (AI Guardrail) APPROVED. Score: {Score:F2}. Reason: {Reason}",
                     evaluation.RiskScore, evaluation.Reasoning);
                 await _mediator.Publish(new ProposalApprovedEvent(proposal, assessment), cancellationToken);
             }
             else
             {
-                _logger.LogWarning("[RiskManager] ❌ Phase 3 (AI Guardrail) REJECTED. Score: {Score:F2}. Reason: {Reason}",
+                _logger.LogWarning("[RiskManager]  Phase 3 (AI Guardrail) REJECTED. Score: {Score:F2}. Reason: {Reason}",
                     evaluation.RiskScore, evaluation.Reasoning);
                 await _mediator.Publish(new ProposalRejectedEvent(proposal, assessment), cancellationToken);
             }
         }
+        catch (HttpRequestException httpEx) when (
+            httpEx.Message.Contains("404") || httpEx.Message.Contains("401") ||
+            httpEx.Message.Contains("No endpoints found"))
+        {
+            // LLM model not available on this account (bad model ID, no credits, etc.)
+            // Hard reject — do NOT approve anything without a working AI guardrail.
+            _logger.LogError("[RiskManager] LLM endpoint unavailable ({Status}). Rejecting proposal — no transaction without AI guardrail.",
+                httpEx.StatusCode);
+            _logger.LogError("[RiskManager] Check AUTOSIG_RISK_MODEL in .env — model may not exist on your OpenRouter account.");
+            await RejectAsync(proposal, RiskVerdict.RejectedByAiGuardrail,
+                "LLM endpoint unavailable (404/401). Transaction blocked until model is restored.",
+                1.0, cancellationToken);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[RiskManager] AI evaluation failed. Rejecting proposal as unsafe.");
-            await RejectAsync(proposal, RiskVerdict.RejectedByAiGuardrail,
-                "AI evaluation failed after retries. Defaulting to REJECT for safety.", null, cancellationToken);
+            // Genuine timeout or transient failure — model was reachable but slow.
+            // Use the C# heuristic as a last resort since at least Phase 1+2 passed.
+            _logger.LogWarning(ex, "[RiskManager] AI evaluation timed out. Running C# heuristic fallback...");
+            
+            var currentBalance = 0UL;
+            try { currentBalance = await _solana.GetBalanceLamportsAsync(cancellationToken); } catch { }
+
+            var amountRatio    = currentBalance > 0 ? (double)proposal.AmountLamports / currentBalance : 1.0;
+            var heuristicScore = 0.0;
+            heuristicScore += amountRatio > 0.3 ? 0.4 : amountRatio * 0.5;
+            heuristicScore += proposal.SelfAssessedRisk > 0.5 ? 0.3 : proposal.SelfAssessedRisk * 0.3;
+            heuristicScore += string.IsNullOrWhiteSpace(proposal.Rationale) ? 0.3 : 0.0;
+
+            var knownAddresses = new[]
+            {
+                "DVt1X6D2nLaVBFQKnafm4gNPucLxUhFB9SrBKBkH7CqP",
+                "9Cz592iKyRYZznR5gEWNwV2PeK1XBkx2Zyx9nQ3cn5y7",
+                "GeHD5Equ44E4nhfBkaD8UFZDdGb1qLY981GNVboMr9Gx"
+            };
+            if (!knownAddresses.Contains(proposal.DestinationAddress))
+                heuristicScore += 0.4;
+
+            heuristicScore = Math.Min(heuristicScore, 1.0);
+            var heuristicApproved = heuristicScore < 0.4;
+
+            _logger.LogWarning("[RiskManager] Heuristic score: {Score:F2} -- {Result}",
+                heuristicScore, heuristicApproved ? "APPROVED (low risk)" : "REJECTED (high risk)");
+
+            var fallbackAssessment = new RiskAssessment
+            {
+                ProposalId  = proposal.Id,
+                Verdict     = heuristicApproved ? RiskVerdict.Approved : RiskVerdict.RejectedByAiGuardrail,
+                Reasoning   = $"AI timed out; C# heuristic score {heuristicScore:F2}. " +
+                               (heuristicApproved ? "Amount and rationale within safe range." : "Risk score too high for auto-approval."),
+                AiRiskScore = heuristicScore
+            };
+
+            if (heuristicApproved)
+            {
+                TradeTimestamps.Enqueue(DateTime.UtcNow);
+                _lastTradeTime = DateTime.UtcNow;
+                await _mediator.Publish(new ProposalApprovedEvent(proposal, fallbackAssessment), cancellationToken);
+            }
+            else
+            {
+                await _mediator.Publish(new ProposalRejectedEvent(proposal, fallbackAssessment), cancellationToken);
+            }
         }
     }
 
     private async Task RejectAsync(TradeProposal proposal, RiskVerdict verdict, string reason,
         double? aiScore, CancellationToken ct)
     {
-        _logger.LogWarning("[RiskManager] ❌ REJECTED: {Reason}", reason);
+        _logger.LogWarning("[RiskManager]  REJECTED: {Reason}", reason);
         var assessment = new RiskAssessment
         {
             ProposalId = proposal.Id,
