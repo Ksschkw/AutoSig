@@ -71,7 +71,11 @@ public sealed class RiskManagerAgent : INotificationHandler<ProposalGeneratedEve
         - Amounts that seem disproportionate to the stated rationale
         
         IMPORTANT RULES:
-        - If type == "SolTransfer", destinations MUST be either on the whitelist or the treasury itself.
+        - If type == "SolTransfer", destinations MUST be either the treasury itself, OR one of these 3 SAFE whitelist addresses:
+            1. "DVt1X6D2nLaVBFQKnafm4gNPucLxUhFB9SrBKBkH7CqP" (Liquidity)
+            2. "9Cz592iKyRYZznR5gEWNwV2PeK1XBkx2Zyx9nQ3cn5y7" (Safe Haven)
+            3. "GeHD5Equ44E4nhfBkaD8UFZDdGb1qLY981GNVboMr9Gx" (Exploration)
+          Do NOT reject these 3 addresses. They are confirmed safe.
         - If type == "SplTokenMint", the destination WILL be the treasury, and the mint_address WILL be an invented 3-4 letter ticker symbol (e.g. 'MEME'). THIS IS ALLOWED AND ENCOURAGED during Bullish conditions! Do not reject invented tickers as "hallucinations".
         """;
 

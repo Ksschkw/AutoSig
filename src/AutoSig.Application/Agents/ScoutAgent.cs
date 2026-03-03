@@ -54,11 +54,18 @@ public sealed class ScoutAgent(
             return;
         }
 
-        logger.LogInformation("[Scout]  Market data received  {Balance:F4} SOL | ${Price:F2} USD ({Change:+0.00;-0.00}%) | {Sentiment}",
-            context.TreasuryBalanceSol, context.SolUsdPrice, context.Sol24hChangePct, context.Sentiment);
-
         // Translate real market signals into a typed opportunity
         var (opportunity, confidence) = AnalyzeMarket(context);
+
+        // If confidence is 0.0 (e.g. exploratory trades disabled), skip entirely
+        if (confidence <= 0.0)
+        {
+            logger.LogInformation("[Scout]  {Opportunity}", opportunity);
+            return;
+        }
+
+        logger.LogInformation("[Scout]  Market data received  {Balance:F4} SOL | ${Price:F2} USD ({Change:+0.00;-0.00}%) | {Sentiment}",
+            context.TreasuryBalanceSol, context.SolUsdPrice, context.Sol24hChangePct, context.Sentiment);
 
         logger.LogInformation("[Scout]  Opportunity identified (confidence: {Confidence:P0}): {Opportunity}",
             confidence, opportunity[..Math.Min(80, opportunity.Length)]);
