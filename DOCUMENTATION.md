@@ -2,7 +2,7 @@
 
 > **DeFi Developer Challenge: Agentic Wallets for AI Agents** | Superteam Nigeria  
 > Autonomous Multi-Agent Treasury on Solana Devnet  
-> Built with .NET 10 · MediatR · Solnet · OpenRouter · meta-llama via OpenRouter
+> Built with .NET 10 · MediatR · Solnet · OpenRouter (stepfun & nemotron)
 
 This document is the single source of truth for every architectural decision, every line of code that matters, every guardrail check, and every test case in the system. Start here.
 
@@ -232,7 +232,7 @@ The core message of the system — what the Strategist wants to execute.
 | `Type` | `ProposalType` | LLM output | SolTransfer, SplTokenTransfer, or SplTokenMint |
 | `AmountLamports` | `ulong` | LLM output | Amount in lamports (1 SOL = 1,000,000,000) |
 | `DestinationAddress` | `string` | LLM output | Recipient Solana wallet, Base58 encoded |
-| `MintAddress` | `string?` | LLM output | Only for SPL token operations |
+| `MintAddress` | `string?` | LLM output | Invented ticker (e.g. "MEME") if minting, else null |
 | `Rationale` | `string` | LLM output | LLM's explanation of why this trade makes sense |
 | `SelfAssessedRisk` | `double` | LLM output | 0.0–1.0 risk score from the Strategist itself |
 
@@ -320,7 +320,7 @@ The Strategist is a `INotificationHandler<MarketOpportunityFoundEvent>` — Medi
 **How it works:**
 1. Receives the event (which includes the full `MarketContext`)
 2. Builds a user message containing `context.ToSummary()` (the full on-chain data table) plus the Scout's analysis text
-3. Sends it to the LLM with a strict system prompt
+3. Sends it to the primary LLM (e.g. `stepfun/step-3.5-flash:free`) with a strict system prompt
 4. Deserializes the LLM's JSON output into a `LlmTradeProposalResponse`
 5. Maps it into a `TradeProposal` and publishes `ProposalGeneratedEvent`
 
@@ -502,7 +502,7 @@ The **only** component in the entire system that holds the private key. The desi
 1. Fetches the latest blockhash via RPC (needed for Solana transaction validity)
 2. Builds the transaction bytes based on proposal type:
    - `SolTransfer` → `SystemProgram.Transfer()` instruction
-   - `SplTokenMint` → SPL mint demo (falls back to small SOL transfer for the hackathon)
+   - `SplTokenMint` → Creates a new mint account, initializes mint, creates ATA, and mints 1,000 tokens to the treasury.
 3. Signs the transaction using the wallet's `Account`
 4. Submits via `SendTransactionAsync()`
 5. Returns a `TransactionResult` with the signature hash or error

@@ -11,6 +11,7 @@ Agents use this document to understand the roles and boundaries of their peers.
 - Queries live Solana Devnet state via RPC (slot height, TPS, recent transactions)
 - Monitors treasury wallet balance in real-time
 - Derives market sentiment (Bullish, Bearish, Neutral, HighActivity) from on-chain activity patterns
+- Supports `AUTOSIG_ENABLE_EXPLORATORY_TRADES` environment variable to pause trading in Neutral markets
 - Generates data-driven opportunity descriptions based on actual network state
 
 **Inputs**: Timer-triggered scan interval  
@@ -24,6 +25,7 @@ Agents use this document to understand the roles and boundaries of their peers.
 - Analyzes real market context from the Scout Agent
 - Uses LLM to generate structured, typed trade proposals
 - Supports SolTransfer, SplTokenTransfer, and SplTokenMint proposal types
+- Invents novel token tickers (e.g. `MEME`, `DOGE`) when market conditions are Bullish
 - Enforces proportional sizing (max 25% of current treasury balance)
 - Self-assesses risk on every proposal
 
@@ -73,7 +75,7 @@ Agents use this document to understand the roles and boundaries of their peers.
 **Role**: Cryptographic Key Vault  
 **Skills**:
 - Stores private key in-memory only (never serialized, logged, or exposed)
-- Builds SOL transfer and SPL token transactions
+- Builds SOL transfer and real SPL Token creation/mint transactions
 - Signs transactions using Ed25519
 - Requests Devnet airdrops for demo funding
 
@@ -83,6 +85,7 @@ Agents use this document to understand the roles and boundaries of their peers.
 **Role**: On-Chain Data Provider  
 **Skills**:
 - Parallel RPC calls for performance (GetSlot, GetBalance, GetBlockhash, GetPerformanceSamples)
+- Integrates with Binance Public API (`api.binance.com/api/v3/ticker/24hr`) for free, reliable, live SOL/USD prices
 - Uses `confirmed` commitment level for optimal speed/safety balance
 - Sentiment derivation from TPS and balance patterns
 - Graceful degradation when individual RPC calls fail

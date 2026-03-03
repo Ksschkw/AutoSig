@@ -1,9 +1,13 @@
 # AutoSig — Autonomous Multi-Agent Treasury on Solana
 
+<div align="center">
+  <img src="image.png" alt="AutoSig Terminal UI" width="800"/>
+</div>
+
 > **DeFi Developer Challenge: Agentic Wallets for AI Agents** | Superteam Nigeria  
 > Built with .NET 10, MediatR, Solnet, and OpenRouter AI
 
-AutoSig is a **production-grade autonomous trading system** where AI agents manage a Solana treasury wallet through a multi-agent consensus pipeline. Every trade passes through a **3-phase risk evaluation** before touching the blockchain.
+AutoSig is a **production-grade autonomous trading system** where AI agents manage a Solana treasury wallet through a multi-agent consensus pipeline. The swarm can analyze live market data, execute safe SOL transfers, and automatically invent and **mint new SplTokens** during Bullish conditions. Every trade passes through a **3-phase risk evaluation** before touching the blockchain.
 
 **No human intervention. No hardcoded fake data. Real blockchain. Real AI. Real guardrails.**
 
@@ -35,8 +39,8 @@ AutoSig is a **production-grade autonomous trading system** where AI agents mana
 ### Agent Pipeline
 | Agent | Role | Data Source |
 |-------|------|-------------|
-| **Scout** 🔭 | Scans Solana Devnet via RPC for real-time market data | `GetSlot`, `GetBalance`, `GetPerformanceSamples` |
-| **Strategist** 🧠 | Feeds live on-chain data to LLM, generates typed trade proposals | OpenRouter (Llama 3.3 70B) |
+| **Scout** 🔭 | Scans Solana Devnet via RPC for real-time market data + Binance API for live SOL prices | `GetSlot`, `GetBalance`, `GetPerformanceSamples`, Binance 24hr Ticker |
+| **Strategist** 🧠 | Feeds live on-chain data to LLM, generates typed trade proposals or new token mints. | OpenRouter |
 | **Risk Manager** 🛡️ | 3-phase evaluation: Hard → Policy → AI guardrails | C# code + independent LLM |
 | **Executor** 🚀 | Signs and submits approved transactions to Solana Devnet | Solnet + Ed25519 |
 
@@ -88,7 +92,10 @@ Create a `.env` file in the project root:
 ```env
 AUTOSIG_SOLANA_PRIVATE_KEY=<your base64 private key>
 AUTOSIG_OPENROUTER_KEY=<your openrouter api key>
-AUTOSIG_LLM_MODEL=meta-llama/llama-3.3-70b-instruct:free
+AUTOSIG_STRATEGIST_MODEL="stepfun/step-3.5-flash:free"
+AUTOSIG_RISK_MODEL="nvidia/nemotron-3-nano-30b-a3b:free"
+AUTOSIG_OUTPUT_LEVEL="Normal"
+AUTOSIG_ENABLE_EXPLORATORY_TRADES="false"
 ```
 
 ### 4. Fund Your Wallet (Free — Devnet)
