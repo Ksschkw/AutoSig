@@ -190,4 +190,4 @@ The test suite **proves** the guardrails cannot be bypassed:
 
 ## 📜 License
 
-MIT License. Built for the Superteam Nigeria DeFi Developer Challenge.
+MIT License.
