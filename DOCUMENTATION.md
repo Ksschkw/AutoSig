@@ -33,7 +33,33 @@ This document is the single source of truth for every architectural decision, ev
 
 ---
 
-## 1. System Overview
+## 1. Hackathon Requirements Deep-Dive
+
+This section is included to explicitly address the judging criteria for the **Agentic Wallets for AI Agents** bounty by Superteam Nigeria.
+
+### A. Deep Dive: Wallet Design & Security Considerations
+AutoSig’s wallet design is built around the principle of **strict encapsulation**:
+1. **The Signer Enclave (`SolanaSignerEnclave.cs`)**: The Ed25519 private key is injected into a sealed class upon application boot. The key is in-memory only. It is *never* serialized, *never* logged, and *never* exposed via a public getter to any other part of the system.
+2. **Separation of Concerns**: The AI generating the trade (`StrategistAgent`) has absolutely no code path to execute a trade. The only agent that can speak to the enclave is the `ExecutorAgent`, and it mathematically refuses to do so unless it holds an irrefutable `ProposalApprovedEvent` from the Risk Manager.
+3. **The 3-Phase Guardrail**: True security means not trusting the AI. C# hard guardrails ensure the raw `amount` and `destination` fields are sane before the LLM logic is ever even considered. The risk policy (Velocity limits, Drawdown limits, Reserve floors) mathematically binds the wallet's trading actions.
+
+### B. Deep Dive: Interaction with AI Agents
+AutoSig does not use synchronous API calls between agents. Instead, it uses **MediatR (the Event Bus)**. 
+- The **Scout Agent** acts as the sensory input, fetching real Solana RPC data and emitting a `MarketOpportunityFoundEvent`.
+- The **Strategist Agent** (powered by `stepfun`) acts as the brain, catching the event, parsing the live context, generating JSON, and emitting a `ProposalGeneratedEvent`.
+- The **Risk Manager Agent** (powered by `nemotron`) acts as the immune system, catching the proposal, evaluating it in 3 phases, and emitting a `ProposalApprovedEvent`.
+- The **Executor Agent** acts as the motor output, catching the approval and submitting the transaction.
+This pub/sub design allows AI agents to act asynchronously and independently.
+
+### C. Scalability: Supporting Multiple Agents Independently
+Because of the MediatR architecture, scaling the swarm is trivial. 
+- Want a second Strategist specializing in Arbitrage? Simply write a new class handling `MarketOpportunityFoundEvent` and let it emit its own proposals into the bus. The Risk Manager doesn't care who wrote the proposal—it evaluates them all identically.
+- Want a specialized Executor for Jupiter swaps? Write a new class handling `ProposalApprovedEvent` that filters for swap types.
+The system is loosely coupled and infinitely horizontally scalable.
+
+---
+
+## 2. System Overview
 
 AutoSig is an **autonomous agent swarm** operating on Solana Devnet. Four specialized AI agents communicate exclusively through MediatR events — there is no shared state, no direct function calls between agents, and no human in the loop.
 

@@ -69,6 +69,28 @@ This is not a toy. Every proposal passes through **three independent layers** of
 
 ---
 
+## Requirements Fulfillment
+
+AutoSig was purposefully built to fulfill the criteria for the **Agentic Wallets for AI Agents**:
+
+| Requirement | How AutoSig Fulfills It |
+|-------------|--------------------------|
+| **Create a wallet programmatically** | `dotnet run -- --generate-key` creates a new Ed25519 keypair and prompts the user to save it. |
+| **Sign transactions automatically** | The `SolanaSignerEnclave` signs `SolTransfer` and `SplTokenMint` transactions using Solnet without human intervention. |
+| **Hold SOL or SPL tokens** | The treasury receives Devnet SOL (auto-airdrops active) and holds the newly minted meme SPL tokens it creates. |
+| **Interact with a protocol/dApp** | The Risk Manager whitelists specific safe vaults/liquidity pools (e.g., `DVt1X6D2nLaVBFQKnafm4gNPucLxUhFB9SrBKBkH7CqP`) for the Strategist to interact with. |
+| **Deep dive documentation** | See the extensive `DOCUMENTATION.md` for architectural, security, and scalability breakdowns. |
+| **Open-source with README** | This exact document you are reading. |
+| **SKILLS.md file** | The `SKILLS.md` file defines the explicit I/O and capabilities of all 4 agents in the swarm. |
+| **Working prototype on devnet** | AutoSig hits real Solana Devnet RPCs, evaluates live TPS/balance, and executes real Devnet transactions (explorer links provided in terminal). |
+
+### Bonus
+- **Dual Price Oracles:** Live fetching from Binance Public API with immediate fallback to CoinGecko.
+- **Novel SPL Token Minting:** During Bullish markets, the AI invents new token tickers and deploys the mint programmatically.
+- **Dual LLM Architecture:** Uses `stepfun` for strategy and `nemotron` for risk validation via OpenRouter.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
