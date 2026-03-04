@@ -17,6 +17,22 @@ file sealed class BinanceTickerResponse
     public string PriceChangePercent { get; init; } = "0";
 }
 
+// CoinGecko response shape (fallback)
+file sealed class CoinGeckoResponse
+{
+    [JsonPropertyName("solana")]
+    public CoinGeckoSolanaData? Solana { get; init; }
+}
+
+file sealed class CoinGeckoSolanaData
+{
+    [JsonPropertyName("usd")]
+    public double Usd { get; init; }
+
+    [JsonPropertyName("usd_24h_change")]
+    public double Usd24hChange { get; init; }
+}
+
 /// <summary>
 /// Gathers real-time market context from the Solana Devnet using RPC calls,
 /// augmented with live SOL/USD price data from the Binance public API (free, no key).
@@ -30,6 +46,9 @@ public sealed class MarketDataService : IMarketDataService
 
     private const string BinanceUrl =
         "https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT";
+    
+    private const string CoinGeckoUrl =
+        "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&include_24hr_change=true";
 
     public MarketDataService(IRpcClient rpc, ISolanaService solana, HttpClient http, ILogger<MarketDataService> logger)
     {
@@ -84,19 +103,35 @@ public sealed class MarketDataService : IMarketDataService
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(8));
-            var data = await _http.GetFromJsonAsync<BinanceTickerResponse>(BinanceUrl, cts.Token);
-            if (data is not null &&
-                double.TryParse(data.LastPrice, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var price) &&
-                double.TryParse(data.PriceChangePercent, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var changePct))
+            cts.CancelAfter(TimeSpan.FromSeconds(5)); // Shorter timeout for primary so we have time for fallback
+            var data = await _http.GetFromJsonAsync<CoinGeckoResponse>(CoinGeckoUrl, cts.Token);
+            if (data?.Solana is { } sol)
             {
-                _logger.LogInformation("[MarketData] Binance: SOL = ${Price:F2} ({Change:+0.00;-0.00}%)", price, changePct);
-                return (price, changePct);
+                _logger.LogInformation("[MarketData] CoinGecko: SOL = ${Price:F2} ({Change:+0.00;-0.00}%)", sol.Usd, sol.Usd24hChange);
+                return (sol.Usd, sol.Usd24hChange);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[MarketData] Binance request failed. Proceeding without price data.");
+            _logger.LogWarning(ex, "[MarketData] CoinGecko request failed. Attempting Binance fallback...");
+            
+            try 
+            {
+                using var cts2 = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts2.CancelAfter(TimeSpan.FromSeconds(5));
+                var data = await _http.GetFromJsonAsync<BinanceTickerResponse>(BinanceUrl, cts2.Token);
+                if (data is not null &&
+                    double.TryParse(data.LastPrice, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var price) &&
+                    double.TryParse(data.PriceChangePercent, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var changePct))
+                {
+                    _logger.LogInformation("[MarketData] Binance (Fallback): SOL = ${Price:F2} ({Change:+0.00;-0.00}%)", price, changePct);
+                    return (price, changePct);
+                }
+            }
+            catch (Exception binanceEx)
+            {
+                _logger.LogWarning(binanceEx, "[MarketData] Binance fallback also failed. Proceeding without price data.");
+            }
         }
         return (0, 0);
     }

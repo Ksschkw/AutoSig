@@ -39,7 +39,7 @@ AutoSig is a **production-grade autonomous trading system** where AI agents mana
 ### Agent Pipeline
 | Agent | Role | Data Source |
 |-------|------|-------------|
-| **Scout** 🔭 | Scans Solana Devnet via RPC for real-time market data + Binance API for live SOL prices | `GetSlot`, `GetBalance`, `GetPerformanceSamples`, Binance 24hr Ticker |
+| **Scout** 🔭 | Scans Solana Devnet via RPC for real-time market data + CoinGecko API (Binance fallback) for live prices | `GetSlot`, `GetBalance`, `GetPerformanceSamples`, CoinGecko/Binance |
 | **Strategist** 🧠 | Feeds live on-chain data to LLM, generates typed trade proposals or new token mints. | OpenRouter |
 | **Risk Manager** 🛡️ | 3-phase evaluation: Hard → Policy → AI guardrails | C# code + independent LLM |
 | **Executor** 🚀 | Signs and submits approved transactions to Solana Devnet | Solnet + Ed25519 |

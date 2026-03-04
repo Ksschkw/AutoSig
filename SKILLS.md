@@ -85,7 +85,7 @@ Agents use this document to understand the roles and boundaries of their peers.
 **Role**: On-Chain Data Provider  
 **Skills**:
 - Parallel RPC calls for performance (GetSlot, GetBalance, GetBlockhash, GetPerformanceSamples)
-- Integrates with Binance Public API (`api.binance.com/api/v3/ticker/24hr`) for free, reliable, live SOL/USD prices
+- Integrates with CoinGecko Public API (with Binance fallback) for free, reliable, live SOL/USD prices
 - Uses `confirmed` commitment level for optimal speed/safety balance
 - Sentiment derivation from TPS and balance patterns
 - Graceful degradation when individual RPC calls fail
