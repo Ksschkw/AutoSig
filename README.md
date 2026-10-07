@@ -13,7 +13,7 @@ AutoSig is a **production-grade autonomous trading system** where AI agents mana
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -30,7 +30,7 @@ AutoSig is a **production-grade autonomous trading system** where AI agents mana
 │  └──────────┘    └─────────────┘    └──────────────┘    └────────────┘
 │                                                                │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │           🔐 SIGNER ENCLAVE (Private Key Vault)         │   │
+│  │            SIGNER ENCLAVE (Private Key Vault)         │   │
 │  │    Key loaded once at boot. Never serialized or logged. │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └────────────────────────────────────────────────────────────────┘
@@ -40,30 +40,30 @@ AutoSig is a **production-grade autonomous trading system** where AI agents mana
 | Agent | Role | Data Source |
 |-------|------|-------------|
 | **Scout** 🔭 | Scans Solana Devnet via RPC for real-time market data + CoinGecko API (Binance fallback) for live prices | `GetSlot`, `GetBalance`, `GetPerformanceSamples`, CoinGecko/Binance |
-| **Strategist** 🧠 | Feeds live on-chain data to LLM, generates typed trade proposals or new token mints. | OpenRouter |
-| **Risk Manager** 🛡️ | 3-phase evaluation: Hard → Policy → AI guardrails | C# code + independent LLM |
-| **Executor** 🚀 | Signs and submits approved transactions to Solana Devnet | Solnet + Ed25519 |
+| **Strategist**  | Feeds live on-chain data to LLM, generates typed trade proposals or new token mints. | OpenRouter |
+| **Risk Manager**  | 3-phase evaluation: Hard → Policy → AI guardrails | C# code + independent LLM |
+| **Executor**  | Signs and submits approved transactions to Solana Devnet | Solnet + Ed25519 |
 
 ---
 
-## 🛡️ Security Model — 3-Phase Risk Evaluation
+##  Security Model — 3-Phase Risk Evaluation
 
 This is not a toy. Every proposal passes through **three independent layers** of security:
 
 ### Phase 1: Hard Guardrails (Immutable C# Code)
-- ❌ Max 0.5 SOL per transaction — **cannot be changed at runtime**
-- ❌ Blocked destination addresses — System Program blacklisted
+-  Max 0.5 SOL per transaction — **cannot be changed at runtime**
+-  Blocked destination addresses — System Program blacklisted
 
 ### Phase 2: Policy Guardrails (Deterministic Logic)
-- ⏱️ **Velocity Limits**: Max 10 trades/hour, 15s cooldown between trades
-- 📉 **Drawdown Protection**: Auto-halt if daily loss exceeds 5%
-- 💰 **Reserve Floor**: Never drain below 0.05 SOL
-- 📊 **Real-time Balance Check**: Queries chain before every approval
+-  **Velocity Limits**: Max 10 trades/hour, 15s cooldown between trades
+-  **Drawdown Protection**: Auto-halt if daily loss exceeds 5%
+-  **Reserve Floor**: Never drain below 0.05 SOL
+-  **Real-time Balance Check**: Queries chain before every approval
 
 ### Phase 3: AI Soft Guardrails (Independent LLM Review)
-- 🤖 Separate LLM instance evaluates the Strategist's proposal
-- 🔍 Detects hallucinated addresses, prompt injection, logic flaws
-- 📊 Risk scoring 0.0–1.0 with auto-reject at ≥0.6
+-  Separate LLM instance evaluates the Strategist's proposal
+-  Detects hallucinated addresses, prompt injection, logic flaws
+-  Risk scoring 0.0–1.0 with auto-reject at ≥0.6
 
 **Key Insight**: Even if the AI is compromised, Phases 1 and 2 are pure C# code that cannot be bypassed by any LLM output.
 
@@ -91,7 +91,7 @@ AutoSig was purposefully built to fulfill the criteria for the **Agentic Wallets
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
@@ -135,7 +135,7 @@ dotnet test src/AutoSig.Tests
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 AutoSig/
@@ -195,7 +195,7 @@ The test suite **proves** the guardrails cannot be bypassed:
 
 ---
 
-## 🧰 Technologies
+##  Technologies
 
 | Component | Technology |
 |-----------|------------|
@@ -210,6 +210,6 @@ The test suite **proves** the guardrails cannot be bypassed:
 
 ---
 
-## 📜 License
+##  License
 
 MIT License.
